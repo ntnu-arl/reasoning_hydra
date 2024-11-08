@@ -3,7 +3,7 @@
     uri: git@github.com:MIT-SPARK/config_utilities.git
 - git:
     local-name: hydra_ros
-    uri: git@github.com:MIT-SPARK/Hydra-ROS.git
+    uri: git@github.com:ntnu-arl/hydra_ros.git
 - git:
     local-name: kimera_pgmo
     uri: git@github.com:MIT-SPARK/Kimera-PGMO.git
@@ -23,3 +23,8 @@
 - git:
     local-name: teaser_plusplus
     uri: git@github.com:MIT-SPARK/TEASER-plusplus.git
+
+- git:
+    local-name: mesh_rviz_plugins
+    uri: git@github.com:MIT-SPARK/mesh_rviz_plugins.git
+    version: master
