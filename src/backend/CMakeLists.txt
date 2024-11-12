@@ -12,4 +12,5 @@ target_sources(
           ${CMAKE_CURRENT_SOURCE_DIR}/update_places_functor.cpp
           ${CMAKE_CURRENT_SOURCE_DIR}/update_rooms_buildings_functor.cpp
           ${CMAKE_CURRENT_SOURCE_DIR}/update_surface_places_functor.cpp
+          ${CMAKE_CURRENT_SOURCE_DIR}/update_reasoning_functor.cpp
 )

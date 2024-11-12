@@ -1,0 +1,172 @@
+/* -----------------------------------------------------------------------------
+ * Copyright 2022 Massachusetts Institute of Technology.
+ * All Rights Reserved
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ *  1. Redistributions of source code must retain the above copyright notice,
+ *     this list of conditions and the following disclaimer.
+ *
+ *  2. Redistributions in binary form must reproduce the above copyright notice,
+ *     this list of conditions and the following disclaimer in the documentation
+ *     and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Research was sponsored by the United States Air Force Research Laboratory and
+ * the United States Air Force Artificial Intelligence Accelerator and was
+ * accomplished under Cooperative Agreement Number FA8750-19-2-1000. The views
+ * and conclusions contained in this document are those of the authors and should
+ * not be interpreted as representing the official policies, either expressed or
+ * implied, of the United States Air Force or the U.S. Government. The U.S.
+ * Government is authorized to reproduce and distribute reprints for Government
+ * purposes notwithstanding any copyright notation herein.
+ * -------------------------------------------------------------------------- */
+#include "hydra/backend/update_reasoning_functor.h"
+
+#include <glog/logging.h>
+#include <pcl/io/pcd_io.h>
+
+#include "hydra/utils/timing_utilities.h"
+
+namespace hydra {
+
+
+UpdateReasoningFunctor::UpdateReasoningFunctor(const ThreeDSSGConfig& config, SharedModuleState::Ptr& state)
+    : config_(config), state_(state) {
+    // Make input and output directories if they don't exist
+    std::filesystem::create_directories(std::filesystem::path(config_.input_folder));
+    std::filesystem::create_directories(std::filesystem::path(config_.output_folder));
+}
+
+MergeList UpdateReasoningFunctor::call(const DynamicSceneGraph&,
+                                       SharedDsgInfo& dsg,
+                                       const UpdateInfo::ConstPtr&) {
+
+    if (dsg.graph->getLayer(DsgLayers::ROOMS).numNodes() == 0 || state_->latest_places.empty()) {
+        return {};
+    }
+
+    // Initialize previous room node id to the first room that we have seen
+    if (!initialized_) {
+        const auto& latest_place_id = *state_->latest_places.begin();
+        assert(dsg.graph->hasNode(latest_place_id));
+        if (!dsg.graph->getNode(latest_place_id).hasParent()) {
+            return {};
+        }
+        prev_room_node_id_ = *(dsg.graph->getNode(latest_place_id).parents().begin());
+        initialized_ = true;
+        return {};
+    }
+    // Detect if the room has changed
+    NodeId room_to_reason_id;
+    if (!detectRoomChange(room_to_reason_id, dsg)) {
+        return {};
+    }
+    
+    // Get the room to reason about
+    if (!dsg.graph->getLayer(DsgLayers::ROOMS).hasNode(room_to_reason_id)) {
+        return {};
+    }
+    const auto& room_to_reason = dsg.graph->getLayer(DsgLayers::ROOMS).getNode(room_to_reason_id);
+    // Iterate over the objects in the room, store a pointcloud of the objects
+    pcl::PointCloud<pcl::PointXYZRGBL>::Ptr object_cloud(new pcl::PointCloud<pcl::PointXYZRGBL>);
+
+    for (const auto& place_id : room_to_reason.children()) {
+        if (!dsg.graph->getLayer(DsgLayers::PLACES).hasNode(place_id)) {
+            continue;
+        }
+        const auto& place = dsg.graph->getLayer(DsgLayers::PLACES).getNode(place_id);
+        for (const auto& object_id : place.children()) {
+            if (!dsg.graph->getLayer(DsgLayers::OBJECTS).hasNode(object_id)) {
+                continue;
+            }
+            const auto& object = dsg.graph->getLayer(DsgLayers::OBJECTS).getNode(object_id);
+            const auto& object_attrs = object.attributes<ObjectNodeAttributes>();
+            const auto& object_mesh_conections = object_attrs.mesh_connections;
+            if (object_mesh_conections.empty()) {
+                continue;
+            }
+            for (const auto& vertex_index : object_mesh_conections) {
+                if (vertex_index >= dsg.graph->mesh()->numVertices()) {
+                    continue;
+                }
+                const auto vertex_pos = dsg.graph->mesh()->pos(vertex_index).cast<double>();
+                const auto vertex_color = dsg.graph->mesh()->color(vertex_index);
+
+                pcl::PointXYZRGBL point;
+                point.x = vertex_pos.x();
+                point.y = vertex_pos.y();
+                point.z = vertex_pos.z();
+                point.r = vertex_color.r;
+                point.g = vertex_color.g;
+                point.b = vertex_color.b;
+                point.label = object_attrs.semantic_label;
+                object_cloud->push_back(point);
+            }
+        }
+    }
+
+    // Save pointcloud to file
+    std::filesystem::path object_cloud_path = std::filesystem::path(config_.input_folder) / (room_to_reason.attributes<SemanticNodeAttributes>().name + ".pcd");
+    pcl::io::savePCDFileBinary(object_cloud_path.string(), *object_cloud);
+    return {};
+}
+
+bool UpdateReasoningFunctor::detectRoomChange(NodeId& room_to_reason_id, const SharedDsgInfo& dsg) {
+
+    // If the previous room is not in the latest places, then we will have detected a room change
+    std::vector<NodeId> latest_places_vec;
+    std::vector<Eigen::Vector3f> place_centroids;
+    const auto& places = dsg.graph->getLayer(DsgLayers::PLACES).nodes();
+    
+    for (const auto& [place_id, place] : places) {
+        if (NodeSymbol(place_id).category() == 'p' && place->hasParent()) {
+            place_centroids.emplace_back(place->attributes<NodeAttributes>().position.cast<float>());
+            latest_places_vec.emplace_back(place_id);
+        }
+    }
+
+    if (place_centroids.empty()) {
+        return false;
+    }
+    
+    if (!neighbor_search_) {
+        neighbor_search_ = std::make_unique<PointNeighborSearch>(place_centroids);
+    } else {
+        neighbor_search_.reset(new PointNeighborSearch(place_centroids));
+    }
+    
+    size_t closest_place_id;
+    float distance_squared;
+    const auto current_pose = dsg.graph->dynamicLayersOfType(DsgLayers::AGENTS).begin()->second->getPositionByIndex(dsg.graph->dynamicLayersOfType(DsgLayers::AGENTS).begin()->second->numNodes() - 1).cast<float>();
+    bool nn_success = neighbor_search_->search(current_pose, distance_squared, closest_place_id);
+    
+    if (!nn_success) {
+        return false;
+    }
+    
+    const auto& closest_place_node_id = latest_places_vec[closest_place_id];
+    NodeId closest_room_node_id = *(places.at(closest_place_node_id)->parents().begin());
+
+    if (closest_room_node_id == prev_room_node_id_) {
+        return false;
+    }
+    
+    room_to_reason_id = prev_room_node_id_;
+    prev_room_node_id_ = closest_room_node_id;
+    
+    return true;
+}
+
+}  // namespace hydra
