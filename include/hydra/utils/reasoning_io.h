@@ -15,7 +15,7 @@ struct ReasoningJson {
     std::vector<std::vector<double>> edge_probs;
 };
 
-void parseReasoningJson(const std::string& filename, ReasoningJson& data);  
+void parseReasoningJson(const std::string& filename, ReasoningJson& data, const std::string& room_name);  
 
 bool readLines(const std::string& filename, std::vector<std::string>& lines);
 } // namespace hydra

@@ -41,7 +41,7 @@ bool Reasoning::runReasoningScript(const std::vector<NodeId>& object_ids,
 
     // Parse the reasoning output json
     ReasoningJson reasoning_data;
-    hydra::parseReasoningJson(output_path.string(), reasoning_data);
+    hydra::parseReasoningJson(output_path.string(), reasoning_data, room_name);
 
     // Iterate through reasoning edges probabilities
     for (size_t i = 0; i < reasoning_data.edge_probs.size(); ++i) {

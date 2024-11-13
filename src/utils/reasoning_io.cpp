@@ -2,20 +2,20 @@
 
 namespace hydra{
 
-void parseReasoningJson(const std::string& filename, ReasoningJson& data) {
+void parseReasoningJson(const std::string& filename, ReasoningJson& data, const std::string& room_name) {
     // Open and parse the JSON file
     std::ifstream file(filename);
     json jsonData;
     file >> jsonData;
     
     // Parse "nodes"
-    if (jsonData.contains("R(0)") && jsonData["R(0)"].contains("nodes")) {
-        data.nodes = jsonData["R(0)"]["nodes"].get<std::vector<std::string>>();
+    if (jsonData.contains(room_name) && jsonData[room_name].contains("nodes")) {
+        data.nodes = jsonData[room_name]["nodes"].get<std::vector<std::string>>();
     }
 
     // Parse "edges"
-    if (jsonData["R(0)"].contains("edges")) {
-        for (auto& [key, value] : jsonData["R(0)"]["edges"].items()) {
+    if (jsonData[room_name].contains("edges")) {
+        for (auto& [key, value] : jsonData[room_name]["edges"].items()) {
             int from = std::stoi(key);
             for (auto& [to_str, relation] : value.items()) {
                 int to = std::stoi(to_str);
@@ -25,13 +25,13 @@ void parseReasoningJson(const std::string& filename, ReasoningJson& data) {
     }
 
     // Parse "node_probs"
-    if (jsonData["R(0)"].contains("node_probs")) {
-        data.node_probs = jsonData["R(0)"]["node_probs"].get<std::vector<std::vector<double>>>();
+    if (jsonData[room_name].contains("node_probs")) {
+        data.node_probs = jsonData[room_name]["node_probs"].get<std::vector<std::vector<double>>>();
     }
 
     // Parse "edge_probs"
-    if (jsonData["R(0)"].contains("edge_probs")) {
-        data.edge_probs = jsonData["R(0)"]["edge_probs"].get<std::vector<std::vector<double>>>();
+    if (jsonData[room_name].contains("edge_probs")) {
+        data.edge_probs = jsonData[room_name]["edge_probs"].get<std::vector<std::vector<double>>>();
     }
 
     file.close();
