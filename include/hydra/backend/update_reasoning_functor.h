@@ -2,8 +2,7 @@
 #include <filesystem>
 
 #include <glog/logging.h>
-#include <pcl/io/pcd_io.h>
-#include <pcl/io/ply_io.h>
+#include <pcl/PolygonMesh.h>
 
 #include <kimera_pgmo/kimera_pgmo_interface.h>
 #include "hydra/backend/update_functions.h"
@@ -11,6 +10,7 @@
 #include "hydra/common/shared_module_state.h"
 #include "hydra/utils/nearest_neighbor_utilities.h"
 #include "hydra/utils/timing_utilities.h"
+#include "hydra/utils/pointcloud_utilities.h"
 
 namespace hydra {
 
@@ -21,9 +21,20 @@ struct UpdateReasoningFunctor {
                  const UpdateInfo::ConstPtr& info);
 
   private:
-  bool detectRoomChange(NodeId& room_to_reason, const SharedDsgInfo& dsg);
-  void getObjectPointcloud(const SharedDsgInfo& dsg, const SceneGraphNode& room, pcl::PointCloud<pcl::PointXYZRGBL>::Ptr object_cloud) const;
-  void savePointCloud(const pcl::PointCloud<pcl::PointXYZRGBL>::Ptr& cloud, const std::string& cloud_name, const std::string& format) const;
+    bool detectRoomChange(NodeId& room_to_reason, 
+                          const SharedDsgInfo& dsg);
+    void getObjectPointcloud(const SharedDsgInfo& dsg, 
+                             const SceneGraphNode& room, 
+                             pcl::PointCloud<pcl::PointXYZRGB>::Ptr object_cloud, 
+                             std::vector<uint32_t>& instance_ids) const;
+    
+    bool areElementsInSet(const std::array<size_t, 3>& arr, const std::set<size_t>& set) const;
+
+
+    void getObjectMeshes(const SharedDsgInfo& dsg, 
+                         const SceneGraphNode& room, 
+                         std::vector<pcl::PolygonMesh::Ptr>& object_meshes,
+                         std::vector<uint32_t>& mesh_labels) const;
 
     ThreeDSSGConfig config_;
     SharedModuleState::Ptr state_;

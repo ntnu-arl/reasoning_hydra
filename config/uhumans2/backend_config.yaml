@@ -72,6 +72,7 @@ reasoning:
   inference_script: /home/albert/Desktop/test_reasoning/inference.sh
   input_folder: /home/albert/Desktop/test_reasoning/input
   output_folder: /home/albert/Desktop/test_reasoning/output
+  normal_estimation_radius: 0.15
 use_2d_places: true
 places2d_config:
     allow_places_merge: true
