@@ -38,10 +38,13 @@ namespace hydra {
 
 
 UpdateReasoningFunctor::UpdateReasoningFunctor(const ThreeDSSGConfig& config, SharedModuleState::Ptr& state)
-    : config_(config), state_(state) {
+    : config_(config), state_(state), reasoning_(std::make_unique<Reasoning>(config.reasoning)) {
     // Make input and output directories if they don't exist
-    std::filesystem::create_directories(std::filesystem::path(config_.input_folder));
-    std::filesystem::create_directories(std::filesystem::path(config_.output_folder));
+    std::filesystem::create_directories(std::filesystem::path(config_.reasoning.input_folder));
+    std::filesystem::create_directories(std::filesystem::path(config_.reasoning.output_folder));
+    // Assert that the inference script directory exists
+    CHECK(std::filesystem::exists(config_.reasoning.method_inference_script_dir))
+        << "Inference script directory does not exist: " << config_.reasoning.method_inference_script_dir;
 }
 
 MergeList UpdateReasoningFunctor::call(const DynamicSceneGraph&,
@@ -75,13 +78,14 @@ MergeList UpdateReasoningFunctor::call(const DynamicSceneGraph&,
     }
     const auto& room_to_reason = dsg.graph->getLayer(DsgLayers::ROOMS).getNode(room_to_reason_id);
 
-
+    // Get the object meshes and labels
     std::vector<pcl::PolygonMesh::Ptr> object_meshes;
     std::vector<uint32_t> mesh_labels;
-    getObjectMeshes(dsg, room_to_reason, object_meshes, mesh_labels);
+    std::vector<NodeId> object_ids;
+    getObjectMeshes(dsg, room_to_reason, object_ids, object_meshes, mesh_labels);
 
     // Save meshes and labels to file
-    std::filesystem::path object_mesh_path = std::filesystem::path(config_.input_folder) / room_to_reason.attributes<SemanticNodeAttributes>().name;
+    std::filesystem::path object_mesh_path = std::filesystem::path(config_.reasoning.input_folder) / room_to_reason.attributes<SemanticNodeAttributes>().name;
     std::filesystem::create_directories(object_mesh_path);
     for (size_t i = 0; i < object_meshes.size(); ++i) {
         std::string filename = (object_mesh_path /  (std::to_string(i) + ".ply")).string();
@@ -89,25 +93,15 @@ MergeList UpdateReasoningFunctor::call(const DynamicSceneGraph&,
     }
     saveVectorToBinary(mesh_labels, (object_mesh_path / "labels").string());
 
-    // Iterate over the objects in the room, store a pointcloud of the objects
-    // pcl::PointCloud<pcl::PointXYZRGB>::Ptr object_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-    // std::vector<uint32_t> instance_ids;
-    // getObjectPointcloud(dsg, room_to_reason, object_cloud, instance_ids);
-    // Compute normals
-    // pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>);
-    // computeNormals<pcl::PointXYZRGB>(object_cloud, normals, config_.normal_estimation_radius);
-
-    // // Add normals to the pointcloud
-    // pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr object_cloud_with_normals(new pcl::PointCloud<pcl::PointXYZRGBNormal>);
-    // pcl::concatenateFields(*object_cloud, *normals, *object_cloud_with_normals);
-
-    // Save pointcloud to file
-    // std::filesystem::path object_cloud_path = std::filesystem::path(config_.input_folder) / room_to_reason.attributes<SemanticNodeAttributes>().name;
-    // savePointCloud<pcl::PointXYZRGBNormal>(object_cloud, object_cloud_path.string());
-    // saveVectorToBinary(instance_ids, object_cloud_path.string());
-
+    // Run the reasoning script
+    std::map<std::pair<NodeId, NodeId>, std::vector<std::string>> reasoning_edges;
+    if (!reasoning_->run(object_ids, reasoning_edges, room_to_reason.attributes<SemanticNodeAttributes>().name) ) {
+        return {};
+    }
+   
     return {};
 }
+
 
 bool UpdateReasoningFunctor::detectRoomChange(NodeId& room_to_reason_id, 
                                               const SharedDsgInfo& dsg) {
@@ -172,6 +166,7 @@ bool UpdateReasoningFunctor::areElementsInSet(const std::array<size_t, 3>& arr, 
 
 void UpdateReasoningFunctor::getObjectMeshes(const SharedDsgInfo& dsg, 
                                              const SceneGraphNode& room, 
+                                             std::vector<NodeId>& object_ids,
                                              std::vector<pcl::PolygonMesh::Ptr>& object_meshes,
                                              std::vector<uint32_t>& mesh_labels) const {
     // Iterate over the objects in the room, store a pointcloud of the objects
@@ -215,6 +210,7 @@ void UpdateReasoningFunctor::getObjectMeshes(const SharedDsgInfo& dsg,
                 point.b = vertex_color.b;
                 cloud->push_back(point);
                 if (!saved_label) {
+                    object_ids.emplace_back(object_id);
                     mesh_labels.emplace_back(object_attrs.semantic_label);
                     saved_label = true;
                 }
