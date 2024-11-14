@@ -72,6 +72,8 @@ void declare_config(BackendModule::Config& config) {
   field(config.visualize_place_factors, "visualize_place_factors");
   field(config.enable_rooms, "enable_rooms");
   field(config.room_finder, "room_finder");
+  field(config.enable_reasoning, "enable_reasoning");
+  field(config.reasoning_functor, "reasoning_functor");
   field(config.enable_buildings, "enable_buildings");
   field(config.building_color, "building_color");
   field(config.building_semantic_label, "building_semantic_label");
@@ -284,7 +286,7 @@ void BackendModule::spinOnce(const BackendInput& input, bool force_update) {
     return;
   }
 
-  timer.reset("backend/spin"); 
+  timer.reset("backend/spin");
   if (config.optimize_on_lc && have_loopclosures_) {
     optimize(input.timestamp_ns);
   } else {
@@ -358,6 +360,11 @@ void BackendModule::setupDefaultFunctors() {
   if (config.enable_buildings) {
     layer_functors_[DsgLayers::BUILDINGS] = std::make_shared<UpdateBuildingsFunctor>(
         config.building_color, config.building_semantic_label);
+  }
+
+  if (config.enable_reasoning) {
+    reasoning_functor_ =
+        std::make_unique<UpdateReasoningFunctor>(config.reasoning_functor, state_);
   }
 }
 
@@ -759,6 +766,11 @@ void BackendModule::callUpdateFunctions(size_t timestamp_ns,
   }
 
   std::list<LayerCleanupFunc> cleanup_hooks;
+  // Call reasoning functor first
+  if (reasoning_functor_) {
+    reasoning_functor_->call(*unmerged_graph_, *private_dsg_, info);
+  }
+  // Call layer functors
   for (const auto& [layer, functor] : layer_functors_) {
     if (!functor) {
       continue;

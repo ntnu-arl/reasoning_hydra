@@ -45,6 +45,7 @@
 #include "hydra/backend/merge_tracker.h"
 #include "hydra/backend/pgmo_configs.h"
 #include "hydra/backend/update_frontiers_functor.h"
+#include "hydra/backend/update_reasoning_functor.h"
 #include "hydra/backend/update_surface_places_functor.h"
 #include "hydra/common/common.h"
 #include "hydra/common/module.h"
@@ -80,6 +81,8 @@ class BackendModule : public kimera_pgmo::KimeraPgmoInterface, public Module {
     bool visualize_place_factors = true;
     bool enable_rooms = true;
     RoomFinderConfig room_finder;
+    bool enable_reasoning = true;
+    ThreeDSSGConfig reasoning_functor;
     bool enable_buildings = true;
     Color building_color = Color(169, 8, 194);  // purple
     SemanticNodeAttributes::Label building_semantic_label = 22u;
@@ -212,6 +215,7 @@ class BackendModule : public kimera_pgmo::KimeraPgmoInterface, public Module {
   MergeTracker merge_tracker;
   std::map<LayerId, UpdateFunctor::Ptr> layer_functors_;
   UpdateFunctor::Ptr agent_functor_;
+  std::unique_ptr<UpdateReasoningFunctor> reasoning_functor_;
 
   BackendModuleStatus status_;
   SceneGraphLogger backend_graph_logger_;

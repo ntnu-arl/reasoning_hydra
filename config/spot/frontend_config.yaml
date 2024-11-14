@@ -72,4 +72,3 @@ freespace_places:
       min_clearance_m: 0.4
     add_freespace_edges: false
     merge_policy: distance
-

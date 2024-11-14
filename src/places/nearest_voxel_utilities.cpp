@@ -87,11 +87,8 @@ void NearestVoxelFinder::find(const GlobalIndex& index,
   std::vector<size_t> nn_indices(num_to_find);
   std::vector<GlobalIndex::Scalar> distances(num_to_find);
 
-
-  size_t num_found = internals_->kdtree->knnSearch(index.data(),
-                                                   num_to_find,
-                                                   nn_indices.data(),
-                                                   distances.data());
+  size_t num_found = internals_->kdtree->knnSearch(
+      index.data(), num_to_find, nn_indices.data(), distances.data());
 
   for (size_t i = 0; i < num_found; ++i) {
     callback(internals_->adaptor.indices[nn_indices[i]], nn_indices[i], distances[i]);
@@ -112,7 +109,9 @@ FurthestIndexResult findFurthestIndexFromLine(const GlobalIndices& indices,
   NearestVoxelFinder nearest_voxel_finder(indices);
   for (const auto& line_idx : line) {
     nearest_voxel_finder.find(
-        line_idx, 1, [&](const GlobalIndex& index, size_t nn_index, GlobalIndex::Scalar distance) {
+        line_idx,
+        1,
+        [&](const GlobalIndex& index, size_t nn_index, GlobalIndex::Scalar distance) {
           if (distance > result.distance || !result.valid) {
             result.valid = true;
             result.distance = distance;

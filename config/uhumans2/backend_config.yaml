@@ -67,6 +67,17 @@ room_finder:
   dilation_diff_threshold_m: -1.0
   log_filtrations: false
   log_place_graphs: false
+enable_reasoning: true
+reasoning_functor:
+  reasoning:
+    inference_script: /home/albert/workspaces/hierarchical_reasoning_ws/src/reasoning_hydra/scripts/reasoning/inference_3dssg.sh
+    input_folder: /home/albert/Desktop/test_reasoning/input
+    output_folder: /home/albert/Desktop/test_reasoning/output
+    method_inference_script_dir: /home/albert/workspaces/reasoning_methods/3DSSG/
+    relations_file: /home/albert/workspaces/reasoning_methods/3DSSG/files/relationships.txt
+    edge_prob_threshold: 0.5
+  normal_estimation_radius: 0.15
+  num_sampling_points: 256
 use_2d_places: true
 places2d_config:
     allow_places_merge: true
