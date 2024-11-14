@@ -9,6 +9,8 @@ Reasoning::Reasoning(const ReasoningConfig& config) : config_(config) {
 
     // Read the relationships file
     CHECK(hydra::readLines(config_.relations_file, relationships_)) << "Failed to read relationships file";
+    // Sort the relationships
+    std::sort(relationships_.begin(), relationships_.end());
 }
 
 bool Reasoning::run(const std::vector<NodeId>& object_ids, 
@@ -45,9 +47,14 @@ bool Reasoning::runReasoningScript(const std::vector<NodeId>& object_ids,
 
     // Iterate through reasoning edges probabilities
     for (size_t i = 0; i < reasoning_data.edge_probs.size(); ++i) {
+        size_t from = static_cast<size_t>(std::floor(i / (object_ids.size() - 1)));
+        size_t to = i % (object_ids.size() - 1);
+        if (to >= from) {
+            to += 1;
+        }
         for (size_t j = 0; j < reasoning_data.edge_probs[i].size(); ++j) {
             if (reasoning_data.edge_probs[i][j] > config_.edge_prob_threshold) {
-                reasoning_edges[{object_ids[i], object_ids[j]}].push_back(relationships_[j]);
+                reasoning_edges[{object_ids[from], object_ids[to]}].push_back(relationships_[j]);
             }
         }
     }

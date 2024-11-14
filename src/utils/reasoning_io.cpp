@@ -47,6 +47,9 @@ bool readLines(const std::string& filename, std::vector<std::string>& lines) {
 
     std::string line;
     while (std::getline(file, line)) {
+        if (line == "none") {
+            continue;
+        }
         lines.push_back(line);
     }
 

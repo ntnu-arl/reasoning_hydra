@@ -73,7 +73,7 @@ void declare_config(BackendModule::Config& config) {
   field(config.enable_rooms, "enable_rooms");
   field(config.room_finder, "room_finder");
   field(config.enable_reasoning, "enable_reasoning");
-  field(config.reasoning, "reasoning");
+  field(config.reasoning_functor, "reasoning_functor");
   field(config.enable_buildings, "enable_buildings");
   field(config.building_color, "building_color");
   field(config.building_semantic_label, "building_semantic_label");
@@ -363,7 +363,7 @@ void BackendModule::setupDefaultFunctors() {
   }
   
   if (config.enable_reasoning) {
-    reasoning_functor_ = std::make_unique<UpdateReasoningFunctor>(config.reasoning, state_);
+    reasoning_functor_ = std::make_unique<UpdateReasoningFunctor>(config.reasoning_functor, state_);
   }
 }
 

@@ -82,7 +82,7 @@ class BackendModule : public kimera_pgmo::KimeraPgmoInterface, public Module {
     bool enable_rooms = true;
     RoomFinderConfig room_finder;
     bool enable_reasoning = true;
-    ThreeDSSGConfig reasoning;
+    ThreeDSSGConfig reasoning_functor;
     bool enable_buildings = true;
     Color building_color = Color(169, 8, 194);  // purple
     SemanticNodeAttributes::Label building_semantic_label = 22u;

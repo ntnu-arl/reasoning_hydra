@@ -20,6 +20,7 @@ void declare_config(ThreeDSSGConfig& conf) {
   name("ThreeDSSGConfig");
   field(conf.normal_estimation_radius, "normal_estimation_radius", "m");
   field(conf.num_sampling_points, "num_sampling_points");
+  field(conf.reasoning, "reasoning");
 }
 
 }  // namespace hydra
