@@ -40,7 +40,8 @@ namespace hydra {
 struct SensorInputPacket {
   using Ptr = std::shared_ptr<SensorInputPacket>;
 
-  explicit SensorInputPacket(uint64_t stamp, size_t sensor_id) : timestamp_ns(stamp), sensor_id(sensor_id) {}
+  explicit SensorInputPacket(uint64_t stamp, size_t sensor_id)
+      : timestamp_ns(stamp), sensor_id(sensor_id) {}
 
   virtual ~SensorInputPacket() = default;
 
@@ -60,7 +61,7 @@ struct ImageInputPacket : public SensorInputPacket {
   cv::Mat color;
   cv::Mat depth;
   cv::Mat labels;
-  bool color_is_bgr = false; // Otherwise, color is RGB already.
+  bool color_is_bgr = false;  // Otherwise, color is RGB already.
 };
 
 struct CloudInputPacket : public SensorInputPacket {

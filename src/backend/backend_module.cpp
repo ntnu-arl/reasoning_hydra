@@ -286,7 +286,7 @@ void BackendModule::spinOnce(const BackendInput& input, bool force_update) {
     return;
   }
 
-  timer.reset("backend/spin"); 
+  timer.reset("backend/spin");
   if (config.optimize_on_lc && have_loopclosures_) {
     optimize(input.timestamp_ns);
   } else {
@@ -361,9 +361,10 @@ void BackendModule::setupDefaultFunctors() {
     layer_functors_[DsgLayers::BUILDINGS] = std::make_shared<UpdateBuildingsFunctor>(
         config.building_color, config.building_semantic_label);
   }
-  
+
   if (config.enable_reasoning) {
-    reasoning_functor_ = std::make_unique<UpdateReasoningFunctor>(config.reasoning_functor, state_);
+    reasoning_functor_ =
+        std::make_unique<UpdateReasoningFunctor>(config.reasoning_functor, state_);
   }
 }
 

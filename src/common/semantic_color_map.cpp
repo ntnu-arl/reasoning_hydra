@@ -132,7 +132,8 @@ SemanticColorMap::Ptr SemanticColorMap::fromCsv(const std::string& filename,
     return nullptr;
   }
 
-  if (!reader.checkRequiredHeaders({red_header, green_header, blue_header, id_header})) {
+  if (!reader.checkRequiredHeaders(
+          {red_header, green_header, blue_header, id_header})) {
     return nullptr;
   }
 

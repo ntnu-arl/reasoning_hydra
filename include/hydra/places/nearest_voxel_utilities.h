@@ -65,16 +65,14 @@ struct FurthestIndexResult {
   GlobalIndex index;
 };
 
-FurthestIndexResult findFurthestIndexFromLine(
-    const GlobalIndices& indices,
-    const GlobalIndex& start,
-    const GlobalIndex& end,
-    size_t number_source_edges);
+FurthestIndexResult findFurthestIndexFromLine(const GlobalIndices& indices,
+                                              const GlobalIndex& start,
+                                              const GlobalIndex& end,
+                                              size_t number_source_edges);
 
-inline FurthestIndexResult findFurthestIndexFromLine(
-    const GlobalIndices& indices,
-    const GlobalIndex& start,
-    const GlobalIndex& end) {
+inline FurthestIndexResult findFurthestIndexFromLine(const GlobalIndices& indices,
+                                                     const GlobalIndex& start,
+                                                     const GlobalIndex& end) {
   return findFurthestIndexFromLine(indices, start, end, indices.size());
 }
 

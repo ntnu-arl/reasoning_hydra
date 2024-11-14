@@ -38,8 +38,8 @@
 #include <optional>
 
 #include "hydra/common/input_queue.h"
-#include "hydra/input/sensor_input_packet.h"
 #include "hydra/input/sensor.h"
+#include "hydra/input/sensor_input_packet.h"
 
 namespace hydra {
 

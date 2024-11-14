@@ -213,7 +213,7 @@ void convertVertexMap(InputData& data, bool in_world_frame) {
   }
   Eigen::Isometry3f transform = data.getSensorPose().cast<float>();  // world_T_sensor
   if (!in_world_frame) {
-    transform = transform.inverse(); // Instead get sensor_T_world
+    transform = transform.inverse();  // Instead get sensor_T_world
   }
   for (int r = 0; r < data.vertex_map.rows; ++r) {
     for (int c = 0; c < data.vertex_map.cols; ++c) {

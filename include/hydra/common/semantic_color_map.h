@@ -77,6 +77,7 @@ class SemanticColorMap {
                                        const Color& unknown = {},
                                        char delimiter = ',',
                                        bool skip_first_line = true);
+
  private:
   uint32_t max_label_;
   ColorToLabelMap color_to_label_;

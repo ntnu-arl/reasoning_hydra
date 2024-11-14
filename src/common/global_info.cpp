@@ -40,8 +40,8 @@
 
 #include "hydra/common/config_utilities.h"
 #include "hydra/common/semantic_color_map.h"
-#include "hydra/utils/timing_utilities.h"
 #include "hydra/utils/pgmo_glog_sink.h"
+#include "hydra/utils/timing_utilities.h"
 
 namespace hydra {
 
@@ -255,9 +255,7 @@ const LabelSpaceConfig& GlobalInfo::getLabelSpaceConfig() const {
   return config_.label_space;
 }
 
-size_t GlobalInfo::getTotalLabels() const {
-  return config_.label_space.total_labels;
-}
+size_t GlobalInfo::getTotalLabels() const { return config_.label_space.total_labels; }
 
 const LabelRemapper& GlobalInfo::getLabelRemapper() const { return label_remapper_; }
 
@@ -282,9 +280,7 @@ std::shared_ptr<const Sensor> GlobalInfo::getSensor(const size_t index) const {
   return sensors_[index];
 }
 
-size_t GlobalInfo::numSensors() const {
-  return sensors_.size();
-}
+size_t GlobalInfo::numSensors() const { return sensors_.size(); }
 
 std::ostream& operator<<(std::ostream& out, const GlobalInfo& config) {
   out << config::toString(config.getConfig());

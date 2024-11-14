@@ -22,4 +22,3 @@ python inference.py --config ./configs/config_3DSSG_full_l160_pcl.yaml \
                     --dry_run \
                     --data_path $input_folder \
                     --model_dir ./models/3dssg_160
-

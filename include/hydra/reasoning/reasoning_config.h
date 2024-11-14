@@ -21,5 +21,4 @@ struct ThreeDSSGConfig {
 void declare_config(ReasoningConfig& config);
 void declare_config(ThreeDSSGConfig& config);
 
-
 }  // namespace hydra

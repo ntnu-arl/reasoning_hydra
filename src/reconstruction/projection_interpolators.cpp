@@ -54,7 +54,6 @@
 
 namespace hydra {
 
-
 InterpolationWeights InterpolatorNearest::computeWeights(float u,
                                                          float v,
                                                          const cv::Mat& img) const {
