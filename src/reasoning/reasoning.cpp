@@ -13,19 +13,47 @@ Reasoning::Reasoning(const ReasoningConfig& config) : config_(config) {
       << "Failed to read relationships file";
   // Sort the relationships
   std::sort(relationships_.begin(), relationships_.end());
+
+  // Create a color map for the relationships
+  // Todo (albertgassol1): Read the colors from a file if provided
+  for (size_t i = 0; i < relationships_.size(); ++i) {
+    relationship_colors_[relationships_[i]] = spark_dsg::Color::random(true);
+  }
 }
 
-bool Reasoning::run(
-    const std::vector<NodeId>& object_ids,
-    std::map<std::pair<NodeId, NodeId>, std::vector<std::string>>& reasoning_edges,
-    const std::string& room_name) const {
-  return runReasoningScript(object_ids, reasoning_edges, room_name);
+bool Reasoning::run(ReasoningOutput& reasoning_data,
+                    const std::string& room_name) const {
+  bool success = runReasoningScript(reasoning_data, room_name);
+  clearReasoning();
+  return success;
 }
 
-bool Reasoning::runReasoningScript(
-    const std::vector<NodeId>& object_ids,
-    std::map<std::pair<NodeId, NodeId>, std::vector<std::string>>& reasoning_edges,
-    const std::string& room_name) const {
+void Reasoning::clearReasoning() const {
+  // Remove all files and folders in input and output folders
+  auto clearDirectory = [](const std::string& directory_path_string) {
+    std::filesystem::path directory_path(directory_path_string);
+    if (!std::filesystem::exists(directory_path) ||
+        !std::filesystem::is_directory(directory_path)) {
+      std::cerr << "The specified path is not a valid directory.\n";
+      return;
+    }
+
+    try {
+      for (const auto& entry : std::filesystem::directory_iterator(directory_path)) {
+        std::filesystem::remove_all(
+            entry.path());  // Recursively remove files and directories
+      }
+    } catch (const std::filesystem::filesystem_error& e) {
+      std::cerr << "Error: " << e.what() << '\n';
+    }
+  };
+
+  clearDirectory(config_.input_folder);
+  clearDirectory(config_.output_folder);
+}
+
+bool Reasoning::runReasoningScript(ReasoningOutput& reasoning_data,
+                                   const std::string& room_name) const {
   std::string command = "bash " + config_.inference_script + " " +
                         config_.input_folder + " " + config_.output_folder + " " +
                         config_.method_inference_script_dir;
@@ -44,24 +72,33 @@ bool Reasoning::runReasoningScript(
   }
 
   // Parse the reasoning output json
-  ReasoningJson reasoning_data;
   hydra::parseReasoningJson(output_path.string(), reasoning_data, room_name);
-
-  // Iterate through reasoning edges probabilities
-  for (size_t i = 0; i < reasoning_data.edge_probs.size(); ++i) {
-    size_t from = static_cast<size_t>(std::floor(i / (object_ids.size() - 1)));
-    size_t to = i % (object_ids.size() - 1);
-    if (to >= from) {
-      to += 1;
-    }
-    for (size_t j = 0; j < reasoning_data.edge_probs[i].size(); ++j) {
-      if (reasoning_data.edge_probs[i][j] > config_.edge_prob_threshold) {
-        reasoning_edges[{object_ids[from], object_ids[to]}].push_back(
-            relationships_[j]);
-      }
-    }
-  }
   return true;
+}
+
+std::string Reasoning::getRelationship(size_t index) const {
+  if (index >= relationships_.size()) {
+    LOG(ERROR) << "Relationship index out of bounds";
+    return "";
+  }
+  return relationships_[index];
+}
+
+spark_dsg::Color Reasoning::getRelationshipColor(
+    const std::string& relationship) const {
+  auto it = relationship_colors_.find(relationship);
+  if (it != relationship_colors_.end()) {
+    return it->second;
+  }
+  return spark_dsg::Color();
+}
+
+spark_dsg::Color Reasoning::getRelationshipColor(size_t index) const {
+  if (index >= relationships_.size()) {
+    LOG(ERROR) << "Relationship index out of bounds";
+    return spark_dsg::Color();
+  }
+  return getRelationshipColor(relationships_[index]);
 }
 
 }  // namespace hydra

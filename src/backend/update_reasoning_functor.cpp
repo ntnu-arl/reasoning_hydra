@@ -18,12 +18,12 @@ UpdateReasoningFunctor::UpdateReasoningFunctor(const ThreeDSSGConfig& config,
       << config_.reasoning.method_inference_script_dir;
 }
 
-MergeList UpdateReasoningFunctor::call(const DynamicSceneGraph&,
-                                       SharedDsgInfo& dsg,
-                                       const UpdateInfo::ConstPtr&) {
+void UpdateReasoningFunctor::call(const DynamicSceneGraph&,
+                                  SharedDsgInfo& dsg,
+                                  const UpdateInfo::ConstPtr&) {
   if (dsg.graph->getLayer(DsgLayers::ROOMS).numNodes() == 0 ||
       state_->latest_places.empty()) {
-    return {};
+    return;
   }
 
   // Initialize previous room node id to the first room that we have seen
@@ -31,21 +31,21 @@ MergeList UpdateReasoningFunctor::call(const DynamicSceneGraph&,
     const auto& latest_place_id = *state_->latest_places.begin();
     assert(dsg.graph->hasNode(latest_place_id));
     if (!dsg.graph->getNode(latest_place_id).hasParent()) {
-      return {};
+      return;
     }
     prev_room_node_id_ = *(dsg.graph->getNode(latest_place_id).parents().begin());
     initialized_ = true;
-    return {};
+    return;
   }
   // Detect if the room has changed
   NodeId room_to_reason_id;
   if (!detectRoomChange(room_to_reason_id, dsg)) {
-    return {};
+    return;
   }
 
   // Get the room to reason about
   if (!dsg.graph->getLayer(DsgLayers::ROOMS).hasNode(room_to_reason_id)) {
-    return {};
+    return;
   }
   const auto& room_to_reason =
       dsg.graph->getLayer(DsgLayers::ROOMS).getNode(room_to_reason_id);
@@ -68,14 +68,71 @@ MergeList UpdateReasoningFunctor::call(const DynamicSceneGraph&,
   saveVectorToBinary(mesh_labels, (object_mesh_path / "labels").string());
 
   // Run the reasoning script
-  std::map<std::pair<NodeId, NodeId>, std::vector<std::string>> reasoning_edges;
-  if (!reasoning_->run(object_ids,
-                       reasoning_edges,
+  ReasoningOutput reasoning_data;
+  if (!reasoning_->run(reasoning_data,
                        room_to_reason.attributes<SemanticNodeAttributes>().name)) {
-    return {};
+    return;
   }
 
-  return {};
+  // Add reasoning edges to the graph
+  updateGraph(dsg.graph, reasoning_data, object_ids);
+}
+
+void UpdateReasoningFunctor::updateGraph(DynamicSceneGraph::Ptr& graph,
+                                         ReasoningOutput& reasoning_data,
+                                         std::vector<NodeId>& object_ids) const {
+  for (size_t i = 0; i < reasoning_data.edge_probs.size(); ++i) {
+    size_t from = static_cast<size_t>(std::floor(i / (object_ids.size() - 1)));
+    size_t to = i % (object_ids.size() - 1);
+    if (to >= from) {
+      to += 1;
+    }
+    EdgeAttributes::Ptr edge = std::make_unique<EdgeAttributes>(1.0);
+
+    bool edge_exists = graph->hasEdge(object_ids[from], object_ids[to]);
+    if (edge_exists) {
+      edge = graph->getEdge(object_ids[from], object_ids[to]).info->clone();
+      if (edge->source_id == object_ids[from] &&
+          !reasoning_data.feature_vectors.empty()) {
+        edge->relationship_source_target.feature_vector =
+            reasoning_data.feature_vectors[i];
+      } else if (edge->source_id == object_ids[to] &&
+                 !reasoning_data.feature_vectors.empty()) {
+        edge->relationship_target_source.feature_vector =
+            reasoning_data.feature_vectors[i];
+      }
+    } else {
+      edge->source_id = object_ids[from];
+      edge->target_id = object_ids[to];
+      if (!reasoning_data.feature_vectors.empty()) {
+        edge->relationship_source_target.feature_vector =
+            reasoning_data.feature_vectors[i];
+      }
+    }
+    for (size_t j = 0; j < reasoning_data.edge_probs[i].size(); ++j) {
+      if (reasoning_data.edge_probs[i][j] > config_.reasoning.edge_prob_threshold) {
+        if (!edge_exists || edge->source_id == object_ids[from]) {
+          edge->relationship_source_target.classes.push_back(
+              reasoning_->getRelationship(j));
+          edge->relationship_source_target.probabilities.push_back(
+              reasoning_data.edge_probs[i][j]);
+          edge->color_source_target = reasoning_->getRelationshipColor(j);
+        } else if (edge->source_id == object_ids[to]) {
+          edge->relationship_target_source.classes.push_back(
+              reasoning_->getRelationship(j));
+          edge->relationship_target_source.probabilities.push_back(
+              reasoning_data.edge_probs[i][j]);
+          edge->color_target_source = reasoning_->getRelationshipColor(j);
+        }
+      }
+    }
+
+    if (edge_exists) {
+      graph->setEdgeAttributes(object_ids[from], object_ids[to], std::move(edge));
+    } else {
+      graph->insertEdge(object_ids[from], object_ids[to], std::move(edge));
+    }
+  }
 }
 
 bool UpdateReasoningFunctor::detectRoomChange(NodeId& room_to_reason_id,
@@ -210,8 +267,9 @@ void UpdateReasoningFunctor::getObjectMeshes(
         const auto& face = dsg.graph->mesh()->face(i);
         if (areElementsInSet(face, vertex_positions)) {
           pcl::Vertices vertices;
-          vertices.vertices = {
-              vertex_map[face[0]], vertex_map[face[1]], vertex_map[face[2]]};
+          vertices.vertices = {static_cast<uint32_t>(vertex_map[face[0]]),
+                               static_cast<uint32_t>(vertex_map[face[1]]),
+                               static_cast<uint32_t>(vertex_map[face[2]])};
           object_mesh->polygons.push_back(vertices);
         }
       }

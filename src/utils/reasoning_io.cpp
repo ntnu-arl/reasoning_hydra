@@ -3,7 +3,7 @@
 namespace hydra {
 
 void parseReasoningJson(const std::string& filename,
-                        ReasoningJson& data,
+                        ReasoningOutput& data,
                         const std::string& room_name) {
   // Open and parse the JSON file
   std::ifstream file(filename);
@@ -36,6 +36,12 @@ void parseReasoningJson(const std::string& filename,
   if (jsonData[room_name].contains("edge_probs")) {
     data.edge_probs =
         jsonData[room_name]["edge_probs"].get<std::vector<std::vector<double>>>();
+  }
+
+  // Parse "feature_vectors"
+  if (jsonData[room_name].contains("feature_vectors")) {
+    data.feature_vectors =
+        jsonData[room_name]["feature_vectors"].get<std::vector<std::vector<double>>>();
   }
 
   file.close();

@@ -4,6 +4,9 @@
 #include <pcl/PolygonMesh.h>
 
 #include <filesystem>
+#include <memory>
+#include <set>
+#include <vector>
 
 #include "hydra/backend/update_functions.h"
 #include "hydra/common/shared_module_state.h"
@@ -17,9 +20,9 @@ namespace hydra {
 
 struct UpdateReasoningFunctor {
   UpdateReasoningFunctor(const ThreeDSSGConfig& config, SharedModuleState::Ptr& state);
-  MergeList call(const DynamicSceneGraph& unmerged,
-                 SharedDsgInfo& dsg,
-                 const UpdateInfo::ConstPtr& info);
+  void call(const DynamicSceneGraph& unmerged,
+            SharedDsgInfo& dsg,
+            const UpdateInfo::ConstPtr& info);
 
  private:
   bool detectRoomChange(NodeId& room_to_reason, const SharedDsgInfo& dsg);
@@ -35,6 +38,10 @@ struct UpdateReasoningFunctor {
                        std::vector<NodeId>& object_ids,
                        std::vector<pcl::PolygonMesh::Ptr>& object_meshes,
                        std::vector<uint32_t>& mesh_labels) const;
+
+  void updateGraph(DynamicSceneGraph::Ptr& graph,
+                   ReasoningOutput& reasoning_data,
+                   std::vector<NodeId>& object_ids) const;
 
   ThreeDSSGConfig config_;
   SharedModuleState::Ptr state_;
