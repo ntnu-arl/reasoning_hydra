@@ -145,6 +145,10 @@ BackendModule::BackendModule(const Config& config,
     zmq_sender_.reset(
         new spark_dsg::ZmqSender(config.zmq_send_url, config.zmq_num_threads));
   }
+
+  if (config.enable_reasoning) {
+    objects_attributes_ = std::make_shared<ObjectsAttributes>();
+  }
 }
 
 BackendModule::~BackendModule() { stopImpl(); }
@@ -318,12 +322,10 @@ void BackendModule::spinOnce(const BackendInput& input, bool force_update) {
                 input.timestamp_ns,
                 *private_dsg_->graph,
                 *deformation_graph_,
-                object_meshes_,
-                object_labels_,
-                object_ids_);
-  object_meshes_.clear();
-  object_labels_.clear();
-  object_ids_.clear();
+                objects_attributes_);
+  if (config.enable_reasoning) {
+    objects_attributes_->clear();
+  }
 }
 
 void BackendModule::loadState(const std::string& state_path,
@@ -789,7 +791,7 @@ void BackendModule::callUpdateFunctions(size_t timestamp_ns,
   std::list<LayerCleanupFunc> cleanup_hooks;
   // Call reasoning functor first
   if (config.enable_reasoning) {
-    reasoning_functor_->call(info, object_meshes_, object_labels_, object_ids_);
+    reasoning_functor_->call(info, objects_attributes_);
   }
   // Call layer functors
   for (const auto& [layer, functor] : layer_functors_) {

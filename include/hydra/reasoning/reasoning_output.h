@@ -6,6 +6,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace hydra {
@@ -15,6 +16,7 @@ using Edges = std::unordered_map<int, std::unordered_map<int, std::string>>;
 using NodeProbs = std::vector<std::vector<double>>;
 using EdgeProbs = std::vector<std::vector<double>>;
 using FeatureVectors = std::vector<std::vector<double>>;
+using EdgeIndices = std::vector<std::pair<size_t, size_t>>;
 
 struct ReasoningOutput {
   using ConstPtr = std::shared_ptr<const ReasoningOutput>;
@@ -25,5 +27,6 @@ struct ReasoningOutput {
   NodeProbs node_probs;
   EdgeProbs edge_probs;
   FeatureVectors feature_vectors;
+  EdgeIndices edge_indices;
 };
 }  // namespace hydra

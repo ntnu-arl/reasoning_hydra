@@ -35,8 +35,32 @@
 #pragma once
 
 #include <gtsam/inference/Symbol.h>
+#include <pcl/PolygonMesh.h>
+#include <spark_dsg/scene_graph_types.h>
+
+#include <algorithm>
+#include <memory>
+#include <utility>
+#include <vector>
 
 #include "hydra/common/shared_dsg_info.h"
+
+namespace hydra {
+struct ObjectsAttributes {
+  using Ptr = std::shared_ptr<ObjectsAttributes>;
+  std::vector<pcl::PolygonMesh::Ptr> meshes;
+  std::vector<uint32_t> labels;
+  std::vector<NodeId> ids;
+  std::vector<std::pair<size_t, size_t>> edge_indices;
+
+  void clear() {
+    meshes.clear();
+    labels.clear();
+    ids.clear();
+    edge_indices.clear();
+  }
+};
+}  // namespace hydra
 
 namespace kimera_pgmo {
 class MeshDelta;

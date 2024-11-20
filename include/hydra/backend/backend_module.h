@@ -82,9 +82,7 @@ class BackendModule : public kimera_pgmo::KimeraPgmoInterface, public Module {
   using Sink = OutputSink<uint64_t,
                           const DynamicSceneGraph&,
                           const kimera_pgmo::DeformationGraph&,
-                          const std::vector<pcl::PolygonMesh::Ptr>&,
-                          const std::vector<uint32_t>&,
-                          const std::vector<NodeId>&>;
+                          const ObjectsAttributes::Ptr&>;
 
   struct Config {
     bool visualize_place_factors = true;
@@ -243,9 +241,7 @@ class BackendModule : public kimera_pgmo::KimeraPgmoInterface, public Module {
   std::unique_ptr<spark_dsg::ZmqReceiver> zmq_receiver_;
   std::unique_ptr<spark_dsg::ZmqSender> zmq_sender_;
 
-  std::vector<pcl::PolygonMesh::Ptr> object_meshes_;
-  std::vector<uint32_t> object_labels_;
-  std::vector<NodeId> object_ids_;
+  ObjectsAttributes::Ptr objects_attributes_ = nullptr;
 
   // TODO(lschmid): This mutex currently simply locks all data for manipulation.
   std::mutex mutex_;

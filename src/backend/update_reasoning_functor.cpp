@@ -10,7 +10,8 @@ UpdateReasoningFunctor::UpdateReasoningFunctor(const ThreeDSSGConfig& config,
     : config_(config),
       state_(state),
       dsg_(dsg),
-      reasoning_(std::make_unique<Reasoning>(config.reasoning)) {}
+      reasoning_(std::make_unique<Reasoning>(config.reasoning)),
+      object_centroids_tree_(std::make_unique<pcl::KdTreeFLANN<pcl::PointXYZ>>()) {}
 
 void UpdateReasoningFunctor::setShutdown(bool should_shutdown) {
   should_shutdown_ = should_shutdown;
@@ -45,9 +46,7 @@ void UpdateReasoningFunctor::spinOnce(const BackendReasoningInput& input,
 }
 
 void UpdateReasoningFunctor::call(const UpdateInfo::ConstPtr& info,
-                                  std::vector<pcl::PolygonMesh::Ptr>& object_meshes,
-                                  std::vector<uint32_t>& object_labels,
-                                  std::vector<NodeId>& object_ids) {
+                                  ObjectsAttributes::Ptr& objects_attributes) {
   if (dsg_->graph->getLayer(DsgLayers::ROOMS).numNodes() == 0 ||
       state_->latest_places.empty()) {
     return;
@@ -82,11 +81,16 @@ void UpdateReasoningFunctor::call(const UpdateInfo::ConstPtr& info,
       dsg_->graph->getLayer(DsgLayers::ROOMS).getNode(room_to_reason_id);
 
   // Get the object meshes and labels
-
   {
     ScopedTimer timer_get_object_meshes("backend/update_reasoning/get_object_meshes",
                                         info->timestamp_ns);
-    getObjectMeshes(room_to_reason, object_ids, object_meshes, object_labels);
+    getObjectMeshes(room_to_reason, objects_attributes);
+  }
+  // Compute the edges to reason about
+  {
+    ScopedTimer timer_get_edge_indices("backend/update_reasoning/get_edge_indices",
+                                       info->timestamp_ns);
+    getEdgeIndices(objects_attributes);
   }
 
   if (config_.reasoning.save_objects) {
@@ -96,11 +100,12 @@ void UpdateReasoningFunctor::call(const UpdateInfo::ConstPtr& info,
         std::filesystem::path(config_.reasoning.input_folder) /
         room_to_reason.attributes<SemanticNodeAttributes>().name;
     std::filesystem::create_directories(object_mesh_path);
-    for (size_t i = 0; i < object_meshes.size(); ++i) {
+    for (size_t i = 0; i < objects_attributes->meshes.size(); ++i) {
       std::string filename = (object_mesh_path / (std::to_string(i) + ".ply")).string();
-      pcl::io::savePLYFile(filename, *object_meshes[i]);
+      pcl::io::savePLYFile(filename, *objects_attributes->meshes[i]);
     }
-    saveVectorToBinary(object_labels, (object_mesh_path / "labels").string());
+    saveVectorToBinary(objects_attributes->labels,
+                       (object_mesh_path / "labels").string());
   }
   // Run the reasoning script
   // ReasoningOutput reasoning_data;
@@ -124,12 +129,11 @@ void UpdateReasoningFunctor::call(const UpdateInfo::ConstPtr& info,
 void UpdateReasoningFunctor::updateGraph(const ReasoningOutput& reasoning_data,
                                          const std::vector<NodeId>& object_ids) const {
   auto& graph = dsg_->graph;
-  for (size_t i = 0; i < reasoning_data.edge_probs.size(); ++i) {
-    size_t from = static_cast<size_t>(std::floor(i / (object_ids.size() - 1)));
-    size_t to = i % (object_ids.size() - 1);
-    if (to >= from) {
-      to += 1;
-    }
+
+  for (size_t i = 0; i < reasoning_data.edge_indices.size(); ++i) {
+    size_t from = reasoning_data.edge_indices[i].first;
+    size_t to = reasoning_data.edge_indices[i].second;
+
     EdgeAttributes::Ptr edge = std::make_unique<EdgeAttributes>(1.0);
 
     bool edge_exists = graph->hasEdge(object_ids[from], object_ids[to]);
@@ -255,10 +259,7 @@ bool UpdateReasoningFunctor::areElementsInSet(const std::array<size_t, 3>& arr,
 }
 
 void UpdateReasoningFunctor::getObjectMeshes(
-    const SceneGraphNode& room,
-    std::vector<NodeId>& object_ids,
-    std::vector<pcl::PolygonMesh::Ptr>& object_meshes,
-    std::vector<uint32_t>& mesh_labels) const {
+    const SceneGraphNode& room, ObjectsAttributes::Ptr& objects_attributes) const {
   // Iterate over the objects in the room, store a pointcloud of the objects
   for (const auto& place_id : room.children()) {
     if (!dsg_->graph->getLayer(DsgLayers::PLACES).hasNode(place_id)) {
@@ -301,8 +302,8 @@ void UpdateReasoningFunctor::getObjectMeshes(
         point.b = vertex_color.b;
         cloud->push_back(point);
         if (!saved_label) {
-          object_ids.emplace_back(object_id);
-          mesh_labels.emplace_back(object_attrs.semantic_label);
+          objects_attributes->ids.push_back(object_id);
+          objects_attributes->labels.push_back(object_attrs.semantic_label);
           saved_label = true;
         }
       }
@@ -321,12 +322,12 @@ void UpdateReasoningFunctor::getObjectMeshes(
         }
       }
       if (cloud->empty() || object_mesh->polygons.empty()) {
-        object_ids.pop_back();
-        mesh_labels.pop_back();
+        objects_attributes->ids.pop_back();
+        objects_attributes->meshes.pop_back();
         continue;
       }
       pcl::toPCLPointCloud2(*cloud, object_mesh->cloud);
-      object_meshes.emplace_back(object_mesh);
+      objects_attributes->meshes.push_back(object_mesh);
     }
   }
 }
@@ -370,6 +371,40 @@ void UpdateReasoningFunctor::getObjectPointcloud(
         instance_ids.emplace_back(instance_id);
       }
       ++instance_id;
+    }
+  }
+}
+
+void UpdateReasoningFunctor::getEdgeIndices(
+    ObjectsAttributes::Ptr& objects_attributes) const {
+  // Get meshes centroids
+  pcl::PointCloud<pcl::PointXYZ>::Ptr mesh_centroids(
+      new pcl::PointCloud<pcl::PointXYZ>);
+  for (const auto& mesh : objects_attributes->meshes) {
+    pcl::PointCloud<pcl::PointXYZ> mesh_cloud;
+    pcl::fromPCLPointCloud2(mesh->cloud, mesh_cloud);
+    Eigen::Vector4f centroid;
+    pcl::compute3DCentroid(mesh_cloud, centroid);
+    pcl::PointXYZ point;
+    point.x = centroid[0];
+    point.y = centroid[1];
+    point.z = centroid[2];
+    mesh_centroids->push_back(point);
+  }
+
+  // Build a kdtree
+  object_centroids_tree_->setInputCloud(mesh_centroids);
+  for (size_t i = 0; i < objects_attributes->meshes.size(); ++i) {
+    std::vector<int> indices;
+    std::vector<float> distances;
+    object_centroids_tree_->radiusSearch(
+        mesh_centroids->at(i), config_.edges_max_radius, indices, distances);
+    if (indices.size() < 2) {
+      continue;
+    }
+    for (size_t j = 1; j < indices.size(); ++j) {
+      objects_attributes->edge_indices.push_back(
+          std::make_pair(i, static_cast<size_t>(indices[j])));
     }
   }
 }

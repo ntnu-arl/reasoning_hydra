@@ -2,6 +2,7 @@
 #include <glog/logging.h>
 #include <kimera_pgmo/kimera_pgmo_interface.h>
 #include <pcl/PolygonMesh.h>
+#include <pcl/kdtree/kdtree_flann.h>
 
 #include <filesystem>
 #include <memory>
@@ -9,6 +10,7 @@
 #include <set>
 #include <vector>
 
+#include "hydra/backend/backend_utilities.h"
 #include "hydra/backend/update_functions.h"
 #include "hydra/common/global_info.h"
 #include "hydra/common/shared_module_state.h"
@@ -31,9 +33,7 @@ class UpdateReasoningFunctor {
 
   void spin(std::mutex& mutex);
   void call(const UpdateInfo::ConstPtr& info,
-            std::vector<pcl::PolygonMesh::Ptr>& object_meshes,
-            std::vector<uint32_t>& object_labels,
-            std::vector<NodeId>& object_ids);
+            ObjectsAttributes::Ptr& objects_attributes);
 
   void setShutdown(bool should_shutdown);
 
@@ -47,21 +47,22 @@ class UpdateReasoningFunctor {
   bool areElementsInSet(const std::array<size_t, 3>& arr,
                         const std::set<size_t>& set) const;
   void getObjectMeshes(const SceneGraphNode& room,
-                       std::vector<NodeId>& object_ids,
-                       std::vector<pcl::PolygonMesh::Ptr>& object_meshes,
-                       std::vector<uint32_t>& mesh_labels) const;
+                       ObjectsAttributes::Ptr& objects_attributes) const;
 
   void updateGraph(const ReasoningOutput& reasoning_data,
                    const std::vector<NodeId>& object_ids) const;
+
+  void getEdgeIndices(ObjectsAttributes::Ptr& objects_attributes) const;
 
   std::atomic<bool> should_shutdown_{false};
   ThreeDSSGConfig config_;
   SharedModuleState::Ptr state_;
   NodeId prev_room_node_id_;
   bool initialized_{false};
-  std::unique_ptr<PointNeighborSearch> neighbor_search_;
   SharedDsgInfo::Ptr dsg_;
   Reasoning::Ptr reasoning_;
+  std::unique_ptr<PointNeighborSearch> neighbor_search_;
+  std::unique_ptr<pcl::KdTreeFLANN<pcl::PointXYZ>> object_centroids_tree_;
 };
 
 }  // namespace hydra

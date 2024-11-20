@@ -79,6 +79,7 @@ reasoning_functor:
   normal_estimation_radius: 0.15
   num_sampling_points: 256
   edge_prob_threshold: 0.5
+  edges_max_radius: 2.1
 use_2d_places: true
 places2d_config:
     allow_places_merge: true
