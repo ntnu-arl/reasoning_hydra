@@ -12,7 +12,7 @@ void parseReasoningJson(const std::string& filename,
 
   // Parse "nodes"
   if (jsonData.contains(room_name) && jsonData[room_name].contains("nodes")) {
-    data.nodes = jsonData[room_name]["nodes"].get<std::vector<std::string>>();
+    data.nodes = jsonData[room_name]["nodes"].get<Nodes>();
   }
 
   // Parse "edges"
@@ -28,20 +28,17 @@ void parseReasoningJson(const std::string& filename,
 
   // Parse "node_probs"
   if (jsonData[room_name].contains("node_probs")) {
-    data.node_probs =
-        jsonData[room_name]["node_probs"].get<std::vector<std::vector<double>>>();
+    data.node_probs = jsonData[room_name]["node_probs"].get<NodeProbs>();
   }
 
   // Parse "edge_probs"
   if (jsonData[room_name].contains("edge_probs")) {
-    data.edge_probs =
-        jsonData[room_name]["edge_probs"].get<std::vector<std::vector<double>>>();
+    data.edge_probs = jsonData[room_name]["edge_probs"].get<EdgeProbs>();
   }
 
   // Parse "feature_vectors"
   if (jsonData[room_name].contains("feature_vectors")) {
-    data.feature_vectors =
-        jsonData[room_name]["feature_vectors"].get<std::vector<std::vector<double>>>();
+    data.feature_vectors = jsonData[room_name]["feature_vectors"].get<FeatureVectors>();
   }
 
   file.close();

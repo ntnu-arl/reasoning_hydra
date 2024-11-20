@@ -2,26 +2,53 @@
 
 namespace hydra {
 
+using timing::ScopedTimer;
+
 UpdateReasoningFunctor::UpdateReasoningFunctor(const ThreeDSSGConfig& config,
-                                               SharedModuleState::Ptr& state)
+                                               SharedModuleState::Ptr& state,
+                                               SharedDsgInfo::Ptr& dsg)
     : config_(config),
       state_(state),
-      reasoning_(std::make_unique<Reasoning>(config.reasoning)) {
-  // Make input and output directories if they don't exist
-  std::filesystem::create_directories(
-      std::filesystem::path(config_.reasoning.input_folder));
-  std::filesystem::create_directories(
-      std::filesystem::path(config_.reasoning.output_folder));
-  // Assert that the inference script directory exists
-  CHECK(std::filesystem::exists(config_.reasoning.method_inference_script_dir))
-      << "Inference script directory does not exist: "
-      << config_.reasoning.method_inference_script_dir;
+      dsg_(dsg),
+      reasoning_(std::make_unique<Reasoning>(config.reasoning)) {}
+
+void UpdateReasoningFunctor::setShutdown(bool should_shutdown) {
+  should_shutdown_ = should_shutdown;
 }
 
-void UpdateReasoningFunctor::call(const DynamicSceneGraph&,
-                                  SharedDsgInfo& dsg,
-                                  const UpdateInfo::ConstPtr&) {
-  if (dsg.graph->getLayer(DsgLayers::ROOMS).numNodes() == 0 ||
+void UpdateReasoningFunctor::spin(std::mutex& mutex) {
+  bool should_shutdown = false;
+  while (!should_shutdown) {
+    bool has_data = state_->reasoning_queue.poll();
+    if (GlobalInfo::instance().force_shutdown() || !has_data) {
+      // copy over shutdown request
+      should_shutdown = should_shutdown_;
+    }
+
+    if (!has_data) {
+      continue;
+    }
+
+    spinOnce(*state_->reasoning_queue.front(), mutex);
+    state_->reasoning_queue.pop();
+  }
+}
+
+void UpdateReasoningFunctor::spinOnce(const BackendReasoningInput& input,
+                                      std::mutex& mutex) {
+  std::lock_guard<std::mutex> lock(mutex);
+  if (!input.reasoning_output) {
+    return;
+  }
+  // Update the graph with the reasoning output
+  updateGraph(*(input.reasoning_output), input.node_ids);
+}
+
+void UpdateReasoningFunctor::call(const UpdateInfo::ConstPtr& info,
+                                  std::vector<pcl::PolygonMesh::Ptr>& object_meshes,
+                                  std::vector<uint32_t>& object_labels,
+                                  std::vector<NodeId>& object_ids) {
+  if (dsg_->graph->getLayer(DsgLayers::ROOMS).numNodes() == 0 ||
       state_->latest_places.empty()) {
     return;
   }
@@ -29,58 +56,74 @@ void UpdateReasoningFunctor::call(const DynamicSceneGraph&,
   // Initialize previous room node id to the first room that we have seen
   if (!initialized_) {
     const auto& latest_place_id = *state_->latest_places.begin();
-    assert(dsg.graph->hasNode(latest_place_id));
-    if (!dsg.graph->getNode(latest_place_id).hasParent()) {
+    assert(dsg_->graph->hasNode(latest_place_id));
+    if (!dsg_->graph->getNode(latest_place_id).hasParent()) {
       return;
     }
-    prev_room_node_id_ = *(dsg.graph->getNode(latest_place_id).parents().begin());
+    prev_room_node_id_ = *(dsg_->graph->getNode(latest_place_id).parents().begin());
     initialized_ = true;
     return;
   }
   // Detect if the room has changed
   NodeId room_to_reason_id;
-  if (!detectRoomChange(room_to_reason_id, dsg)) {
-    return;
+  {
+    ScopedTimer timer_room_change("backend/update_reasoning/detect_room_change",
+                                  info->timestamp_ns);
+    if (!detectRoomChange(room_to_reason_id)) {
+      return;
+    }
   }
 
   // Get the room to reason about
-  if (!dsg.graph->getLayer(DsgLayers::ROOMS).hasNode(room_to_reason_id)) {
+  if (!dsg_->graph->getLayer(DsgLayers::ROOMS).hasNode(room_to_reason_id)) {
     return;
   }
   const auto& room_to_reason =
-      dsg.graph->getLayer(DsgLayers::ROOMS).getNode(room_to_reason_id);
+      dsg_->graph->getLayer(DsgLayers::ROOMS).getNode(room_to_reason_id);
 
   // Get the object meshes and labels
-  std::vector<pcl::PolygonMesh::Ptr> object_meshes;
-  std::vector<uint32_t> mesh_labels;
-  std::vector<NodeId> object_ids;
-  getObjectMeshes(dsg, room_to_reason, object_ids, object_meshes, mesh_labels);
 
-  // Save meshes and labels to file
-  std::filesystem::path object_mesh_path =
-      std::filesystem::path(config_.reasoning.input_folder) /
-      room_to_reason.attributes<SemanticNodeAttributes>().name;
-  std::filesystem::create_directories(object_mesh_path);
-  for (size_t i = 0; i < object_meshes.size(); ++i) {
-    std::string filename = (object_mesh_path / (std::to_string(i) + ".ply")).string();
-    pcl::io::savePLYFile(filename, *object_meshes[i]);
+  {
+    ScopedTimer timer_get_object_meshes("backend/update_reasoning/get_object_meshes",
+                                        info->timestamp_ns);
+    getObjectMeshes(room_to_reason, object_ids, object_meshes, object_labels);
   }
-  saveVectorToBinary(mesh_labels, (object_mesh_path / "labels").string());
 
+  if (config_.reasoning.save_objects) {
+    ScopedTimer timer_save("backend/update_reasoning/save", info->timestamp_ns);
+    // Save meshes and labels to file
+    std::filesystem::path object_mesh_path =
+        std::filesystem::path(config_.reasoning.input_folder) /
+        room_to_reason.attributes<SemanticNodeAttributes>().name;
+    std::filesystem::create_directories(object_mesh_path);
+    for (size_t i = 0; i < object_meshes.size(); ++i) {
+      std::string filename = (object_mesh_path / (std::to_string(i) + ".ply")).string();
+      pcl::io::savePLYFile(filename, *object_meshes[i]);
+    }
+    saveVectorToBinary(object_labels, (object_mesh_path / "labels").string());
+  }
   // Run the reasoning script
-  ReasoningOutput reasoning_data;
-  if (!reasoning_->run(reasoning_data,
-                       room_to_reason.attributes<SemanticNodeAttributes>().name)) {
-    return;
-  }
+  // ReasoningOutput reasoning_data;
+  // {
+  //   ScopedTimer timer_run_script("backend/update_reasoning/run_script",
+  //                                info->timestamp_ns);
+  //   if (!reasoning_->run(reasoning_data,
+  //                        room_to_reason.attributes<SemanticNodeAttributes>().name)) {
+  //     return;
+  //   }
+  // }
 
-  // Add reasoning edges to the graph
-  updateGraph(dsg.graph, reasoning_data, object_ids);
+  // // Add reasoning edges to the graph
+  // {
+  //   ScopedTimer timer_update_graph("backend/update_reasoning/update_graph",
+  //                                  info->timestamp_ns);
+  //   updateGraph(reasoning_data, object_ids);
+  // }
 }
 
-void UpdateReasoningFunctor::updateGraph(DynamicSceneGraph::Ptr& graph,
-                                         ReasoningOutput& reasoning_data,
-                                         std::vector<NodeId>& object_ids) const {
+void UpdateReasoningFunctor::updateGraph(const ReasoningOutput& reasoning_data,
+                                         const std::vector<NodeId>& object_ids) const {
+  auto& graph = dsg_->graph;
   for (size_t i = 0; i < reasoning_data.edge_probs.size(); ++i) {
     size_t from = static_cast<size_t>(std::floor(i / (object_ids.size() - 1)));
     size_t to = i % (object_ids.size() - 1);
@@ -94,23 +137,29 @@ void UpdateReasoningFunctor::updateGraph(DynamicSceneGraph::Ptr& graph,
       edge = graph->getEdge(object_ids[from], object_ids[to]).info->clone();
       if (edge->source_id == object_ids[from] &&
           !reasoning_data.feature_vectors.empty()) {
-        edge->relationship_source_target.feature_vector =
-            reasoning_data.feature_vectors[i];
+        if (!reasoning_data.feature_vectors[i].empty()) {
+          edge->relationship_source_target.feature_vector =
+              reasoning_data.feature_vectors[i];
+        }
       } else if (edge->source_id == object_ids[to] &&
                  !reasoning_data.feature_vectors.empty()) {
-        edge->relationship_target_source.feature_vector =
-            reasoning_data.feature_vectors[i];
+        if (!reasoning_data.feature_vectors[i].empty()) {
+          edge->relationship_target_source.feature_vector =
+              reasoning_data.feature_vectors[i];
+        }
       }
     } else {
       edge->source_id = object_ids[from];
       edge->target_id = object_ids[to];
       if (!reasoning_data.feature_vectors.empty()) {
-        edge->relationship_source_target.feature_vector =
-            reasoning_data.feature_vectors[i];
+        if (!reasoning_data.feature_vectors[i].empty()) {
+          edge->relationship_source_target.feature_vector =
+              reasoning_data.feature_vectors[i];
+        }
       }
     }
     for (size_t j = 0; j < reasoning_data.edge_probs[i].size(); ++j) {
-      if (reasoning_data.edge_probs[i][j] > config_.reasoning.edge_prob_threshold) {
+      if (reasoning_data.edge_probs[i][j] > config_.edge_prob_threshold) {
         if (!edge_exists || edge->source_id == object_ids[from]) {
           edge->relationship_source_target.classes.push_back(
               reasoning_->getRelationship(j));
@@ -135,12 +184,11 @@ void UpdateReasoningFunctor::updateGraph(DynamicSceneGraph::Ptr& graph,
   }
 }
 
-bool UpdateReasoningFunctor::detectRoomChange(NodeId& room_to_reason_id,
-                                              const SharedDsgInfo& dsg) {
+bool UpdateReasoningFunctor::detectRoomChange(NodeId& room_to_reason_id) {
   // Get place nodes that have parents (i.e. are in rooms)
   std::vector<NodeId> latest_places_vec;
   std::vector<Eigen::Vector3f> place_centroids;
-  const auto& places = dsg.graph->getLayer(DsgLayers::PLACES).nodes();
+  const auto& places = dsg_->graph->getLayer(DsgLayers::PLACES).nodes();
 
   for (const auto& [place_id, place] : places) {
     if (NodeSymbol(place_id).category() == 'p' && place->hasParent()) {
@@ -164,10 +212,10 @@ bool UpdateReasoningFunctor::detectRoomChange(NodeId& room_to_reason_id,
   size_t closest_place_id;
   float distance_squared;
   const auto current_pose =
-      dsg.graph->dynamicLayersOfType(DsgLayers::AGENTS)
+      dsg_->graph->dynamicLayersOfType(DsgLayers::AGENTS)
           .begin()
           ->second
-          ->getPositionByIndex(dsg.graph->dynamicLayersOfType(DsgLayers::AGENTS)
+          ->getPositionByIndex(dsg_->graph->dynamicLayersOfType(DsgLayers::AGENTS)
                                    .begin()
                                    ->second->numNodes() -
                                1)
@@ -207,22 +255,21 @@ bool UpdateReasoningFunctor::areElementsInSet(const std::array<size_t, 3>& arr,
 }
 
 void UpdateReasoningFunctor::getObjectMeshes(
-    const SharedDsgInfo& dsg,
     const SceneGraphNode& room,
     std::vector<NodeId>& object_ids,
     std::vector<pcl::PolygonMesh::Ptr>& object_meshes,
     std::vector<uint32_t>& mesh_labels) const {
   // Iterate over the objects in the room, store a pointcloud of the objects
   for (const auto& place_id : room.children()) {
-    if (!dsg.graph->getLayer(DsgLayers::PLACES).hasNode(place_id)) {
+    if (!dsg_->graph->getLayer(DsgLayers::PLACES).hasNode(place_id)) {
       continue;
     }
-    const auto& place = dsg.graph->getLayer(DsgLayers::PLACES).getNode(place_id);
+    const auto& place = dsg_->graph->getLayer(DsgLayers::PLACES).getNode(place_id);
     for (const auto& object_id : place.children()) {
-      if (!dsg.graph->getLayer(DsgLayers::OBJECTS).hasNode(object_id)) {
+      if (!dsg_->graph->getLayer(DsgLayers::OBJECTS).hasNode(object_id)) {
         continue;
       }
-      const auto& object = dsg.graph->getLayer(DsgLayers::OBJECTS).getNode(object_id);
+      const auto& object = dsg_->graph->getLayer(DsgLayers::OBJECTS).getNode(object_id);
       const auto& object_attrs = object.attributes<ObjectNodeAttributes>();
       const auto& object_mesh_conections = object_attrs.mesh_connections;
       if (object_mesh_conections.empty()) {
@@ -236,14 +283,14 @@ void UpdateReasoningFunctor::getObjectMeshes(
       bool saved_label = false;
       size_t j = 0;
       for (const auto& vertex_index : object_mesh_conections) {
-        if (vertex_index >= dsg.graph->mesh()->numVertices()) {
+        if (vertex_index >= dsg_->graph->mesh()->numVertices()) {
           continue;
         }
-        const auto vertex_pos = dsg.graph->mesh()->pos(vertex_index).cast<double>();
+        const auto vertex_pos = dsg_->graph->mesh()->pos(vertex_index).cast<double>();
         vertex_positions.insert(vertex_index);
         vertex_map[vertex_index] = j;
         j++;
-        const auto vertex_color = dsg.graph->mesh()->color(vertex_index);
+        const auto vertex_color = dsg_->graph->mesh()->color(vertex_index);
 
         pcl::PointXYZRGB point;
         point.x = vertex_pos.x();
@@ -263,8 +310,8 @@ void UpdateReasoningFunctor::getObjectMeshes(
       cloud->height = 1;
       cloud->is_dense = true;
 
-      for (size_t i = 0; i < dsg.graph->mesh()->numFaces(); ++i) {
-        const auto& face = dsg.graph->mesh()->face(i);
+      for (size_t i = 0; i < dsg_->graph->mesh()->numFaces(); ++i) {
+        const auto& face = dsg_->graph->mesh()->face(i);
         if (areElementsInSet(face, vertex_positions)) {
           pcl::Vertices vertices;
           vertices.vertices = {static_cast<uint32_t>(vertex_map[face[0]]),
@@ -273,6 +320,11 @@ void UpdateReasoningFunctor::getObjectMeshes(
           object_mesh->polygons.push_back(vertices);
         }
       }
+      if (cloud->empty() || object_mesh->polygons.empty()) {
+        object_ids.pop_back();
+        mesh_labels.pop_back();
+        continue;
+      }
       pcl::toPCLPointCloud2(*cloud, object_mesh->cloud);
       object_meshes.emplace_back(object_mesh);
     }
@@ -280,33 +332,32 @@ void UpdateReasoningFunctor::getObjectMeshes(
 }
 
 void UpdateReasoningFunctor::getObjectPointcloud(
-    const SharedDsgInfo& dsg,
     const SceneGraphNode& room,
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr object_cloud,
     std::vector<uint32_t>& instance_ids) const {
   // Iterate over the objects in the room, store a pointcloud of the objects
   uint32_t instance_id = 0;
   for (const auto& place_id : room.children()) {
-    if (!dsg.graph->getLayer(DsgLayers::PLACES).hasNode(place_id)) {
+    if (!dsg_->graph->getLayer(DsgLayers::PLACES).hasNode(place_id)) {
       continue;
     }
-    const auto& place = dsg.graph->getLayer(DsgLayers::PLACES).getNode(place_id);
+    const auto& place = dsg_->graph->getLayer(DsgLayers::PLACES).getNode(place_id);
     for (const auto& object_id : place.children()) {
-      if (!dsg.graph->getLayer(DsgLayers::OBJECTS).hasNode(object_id)) {
+      if (!dsg_->graph->getLayer(DsgLayers::OBJECTS).hasNode(object_id)) {
         continue;
       }
-      const auto& object = dsg.graph->getLayer(DsgLayers::OBJECTS).getNode(object_id);
+      const auto& object = dsg_->graph->getLayer(DsgLayers::OBJECTS).getNode(object_id);
       const auto& object_attrs = object.attributes<ObjectNodeAttributes>();
       const auto& object_mesh_conections = object_attrs.mesh_connections;
       if (object_mesh_conections.empty()) {
         continue;
       }
       for (const auto& vertex_index : object_mesh_conections) {
-        if (vertex_index >= dsg.graph->mesh()->numVertices()) {
+        if (vertex_index >= dsg_->graph->mesh()->numVertices()) {
           continue;
         }
-        const auto vertex_pos = dsg.graph->mesh()->pos(vertex_index).cast<double>();
-        const auto vertex_color = dsg.graph->mesh()->color(vertex_index);
+        const auto vertex_pos = dsg_->graph->mesh()->pos(vertex_index).cast<double>();
+        const auto vertex_color = dsg_->graph->mesh()->color(vertex_index);
 
         pcl::PointXYZRGB point;
         point.x = vertex_pos.x();

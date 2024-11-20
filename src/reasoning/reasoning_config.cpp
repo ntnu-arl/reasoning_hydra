@@ -12,15 +12,16 @@ void declare_config(ReasoningConfig& conf) {
   field(conf.output_folder, "output_folder");
   field(conf.method_inference_script_dir, "method_inference_script_dir");
   field(conf.relations_file, "relations_file");
-  field(conf.edge_prob_threshold, "edge_prob_threshold");
+  field(conf.save_objects, "save_objects");
 }
 
 void declare_config(ThreeDSSGConfig& conf) {
   using namespace config;
   name("ThreeDSSGConfig");
+  field(conf.reasoning, "reasoning");
   field(conf.normal_estimation_radius, "normal_estimation_radius", "m");
   field(conf.num_sampling_points, "num_sampling_points");
-  field(conf.reasoning, "reasoning");
+  field(conf.edge_prob_threshold, "edge_prob_threshold");
 }
 
 }  // namespace hydra

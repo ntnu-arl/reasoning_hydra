@@ -28,3 +28,8 @@
     local-name: mesh_rviz_plugins
     uri: git@github.com:MIT-SPARK/mesh_rviz_plugins.git
     version: master
+
+- git:
+    local-name: reasoning_ros_wrapper
+    uri: git@github.com:ntnu-arl/reasoning_ros_wrapper.git
+    version: master

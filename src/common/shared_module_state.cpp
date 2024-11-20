@@ -55,6 +55,7 @@ SharedModuleState::~SharedModuleState() {
   }
 
   VLOG(2) << "backend_lcd_queue: " << backend_lcd_queue.size();
+  VLOG(2) << "reasoning_queue: " << reasoning_queue.size();
 }
 
 void BackendModuleStatus::reset() {

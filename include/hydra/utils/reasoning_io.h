@@ -6,19 +6,13 @@
 #include <iostream>
 #include <nlohmann/json.hpp>
 #include <string>
-#include <unordered_map>
 #include <vector>
+
+#include "hydra/reasoning/reasoning_output.h"
 
 namespace hydra {
 
 using json = nlohmann::json;
-struct ReasoningOutput {
-  std::vector<std::string> nodes;
-  std::unordered_map<int, std::unordered_map<int, std::string>> edges;
-  std::vector<std::vector<double>> node_probs;
-  std::vector<std::vector<double>> edge_probs;
-  std::vector<std::vector<double>> feature_vectors;
-};
 
 void parseReasoningJson(const std::string& filename,
                         ReasoningOutput& data,

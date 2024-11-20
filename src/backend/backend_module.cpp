@@ -155,11 +155,16 @@ void BackendModule::start() {
   if (config.use_zmq_interface) {
     zmq_thread_.reset(new std::thread(&BackendModule::runZmqUpdates, this));
   }
+  if (config.enable_reasoning) {
+    reasoning_thread_.reset(new std::thread(
+        &UpdateReasoningFunctor::spin, reasoning_functor_, std::ref(mutex_)));
+  }
   LOG(INFO) << "[Hydra Backend] started!";
 }
 
 void BackendModule::stopImpl() {
   should_shutdown_ = true;
+  reasoning_functor_->setShutdown(true);
 
   if (spin_thread_) {
     VLOG(2) << "[Hydra Backend] joining optimizer thread and stopping";
@@ -172,6 +177,13 @@ void BackendModule::stopImpl() {
     VLOG(2) << "[Hydra Backend] joining zmq thread and stopping";
     zmq_thread_->join();
     zmq_thread_.reset();
+    VLOG(2) << "[Hydra Backend] stopped!";
+  }
+
+  if (reasoning_thread_) {
+    VLOG(2) << "[Hydra Backend] joining reasoning thread and stopping";
+    reasoning_thread_->join();
+    reasoning_thread_.reset();
     VLOG(2) << "[Hydra Backend] stopped!";
   }
 
@@ -302,7 +314,16 @@ void BackendModule::spinOnce(const BackendInput& input, bool force_update) {
     zmq_sender_->send(*private_dsg_->graph, config.zmq_send_mesh);
   }
   ScopedTimer sink_timer("backend/sinks", input.timestamp_ns);
-  Sink::callAll(sinks_, input.timestamp_ns, *private_dsg_->graph, *deformation_graph_);
+  Sink::callAll(sinks_,
+                input.timestamp_ns,
+                *private_dsg_->graph,
+                *deformation_graph_,
+                object_meshes_,
+                object_labels_,
+                object_ids_);
+  object_meshes_.clear();
+  object_labels_.clear();
+  object_ids_.clear();
 }
 
 void BackendModule::loadState(const std::string& state_path,
@@ -363,8 +384,8 @@ void BackendModule::setupDefaultFunctors() {
   }
 
   if (config.enable_reasoning) {
-    reasoning_functor_ =
-        std::make_unique<UpdateReasoningFunctor>(config.reasoning_functor, state_);
+    reasoning_functor_ = std::make_shared<UpdateReasoningFunctor>(
+        config.reasoning_functor, state_, private_dsg_);
   }
 }
 
@@ -756,10 +777,10 @@ void BackendModule::callUpdateFunctions(size_t timestamp_ns,
 
   // merge topological changes to private dsg, respecting merges
   // attributes may be overwritten, but ideally we don't bother
-  GraphMergeConfig config;
-  config.previous_merges = &private_dsg_->merges;
-  config.update_dynamic_attributes = false;
-  private_dsg_->graph->mergeGraph(*unmerged_graph_, config);
+  GraphMergeConfig graph_config;
+  graph_config.previous_merges = &private_dsg_->merges;
+  graph_config.update_dynamic_attributes = false;
+  private_dsg_->graph->mergeGraph(*unmerged_graph_, graph_config);
 
   if (agent_functor_) {
     agent_functor_->call(*unmerged_graph_, *private_dsg_, info);
@@ -767,8 +788,8 @@ void BackendModule::callUpdateFunctions(size_t timestamp_ns,
 
   std::list<LayerCleanupFunc> cleanup_hooks;
   // Call reasoning functor first
-  if (reasoning_functor_) {
-    reasoning_functor_->call(*unmerged_graph_, *private_dsg_, info);
+  if (config.enable_reasoning) {
+    reasoning_functor_->call(info, object_meshes_, object_labels_, object_ids_);
   }
   // Call layer functors
   for (const auto& [layer, functor] : layer_functors_) {

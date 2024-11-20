@@ -50,6 +50,7 @@
 #include "hydra/common/shared_dsg_info.h"
 #include "hydra/loop_closure/registration_solution.h"
 #include "hydra/odometry/pose_graph_tracker.h"
+#include "hydra/reasoning/reasoning_output.h"
 
 namespace hydra {
 
@@ -71,6 +72,14 @@ struct BackendInput {
   kimera_pgmo::MeshDelta::Ptr mesh_update;
 };
 
+struct BackendReasoningInput {
+  using Ptr = std::shared_ptr<BackendReasoningInput>;
+
+  uint64_t timestamp_ns;
+  ReasoningOutput::ConstPtr reasoning_output;
+  std::vector<NodeId> node_ids;
+};
+
 struct SharedModuleState {
   using Ptr = std::shared_ptr<SharedModuleState>;
   using BowQueue = InputQueue<pose_graph_tools::BowQuery::ConstPtr>;
@@ -82,6 +91,7 @@ struct SharedModuleState {
   NodeIdSet latest_places;
 
   InputQueue<BackendInput::Ptr> backend_queue;
+  InputQueue<BackendReasoningInput::Ptr> reasoning_queue;
   InputQueue<LcdInput::Ptr>::Ptr lcd_queue;
   BowQueue::Ptr bow_queue;
   InputQueue<lcd::RegistrationSolution> backend_lcd_queue;

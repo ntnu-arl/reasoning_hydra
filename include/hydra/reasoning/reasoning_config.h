@@ -9,13 +9,14 @@ struct ReasoningConfig {
   std::string output_folder;
   std::string method_inference_script_dir;
   std::string relations_file;
-  double edge_prob_threshold;
+  bool save_objects;
 };
 
 struct ThreeDSSGConfig {
   ReasoningConfig reasoning;
   double normal_estimation_radius;
   size_t num_sampling_points;
+  double edge_prob_threshold;
 };
 
 void declare_config(ReasoningConfig& config);

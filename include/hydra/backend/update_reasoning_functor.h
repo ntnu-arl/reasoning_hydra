@@ -5,50 +5,63 @@
 
 #include <filesystem>
 #include <memory>
+#include <mutex>
 #include <set>
 #include <vector>
 
 #include "hydra/backend/update_functions.h"
+#include "hydra/common/global_info.h"
 #include "hydra/common/shared_module_state.h"
 #include "hydra/reasoning/reasoning.h"
 #include "hydra/reasoning/reasoning_config.h"
+#include "hydra/reasoning/reasoning_output.h"
 #include "hydra/utils/nearest_neighbor_utilities.h"
 #include "hydra/utils/pointcloud_utilities.h"
 #include "hydra/utils/timing_utilities.h"
 
 namespace hydra {
 
-struct UpdateReasoningFunctor {
-  UpdateReasoningFunctor(const ThreeDSSGConfig& config, SharedModuleState::Ptr& state);
-  void call(const DynamicSceneGraph& unmerged,
-            SharedDsgInfo& dsg,
-            const UpdateInfo::ConstPtr& info);
+class UpdateReasoningFunctor {
+ public:
+  using Ptr = std::shared_ptr<UpdateReasoningFunctor>;
+
+  UpdateReasoningFunctor(const ThreeDSSGConfig& config,
+                         SharedModuleState::Ptr& state,
+                         SharedDsgInfo::Ptr& dsg);
+
+  void spin(std::mutex& mutex);
+  void call(const UpdateInfo::ConstPtr& info,
+            std::vector<pcl::PolygonMesh::Ptr>& object_meshes,
+            std::vector<uint32_t>& object_labels,
+            std::vector<NodeId>& object_ids);
+
+  void setShutdown(bool should_shutdown);
 
  private:
-  bool detectRoomChange(NodeId& room_to_reason, const SharedDsgInfo& dsg);
-  void getObjectPointcloud(const SharedDsgInfo& dsg,
-                           const SceneGraphNode& room,
+  void spinOnce(const BackendReasoningInput& input, std::mutex& mutex);
+  bool detectRoomChange(NodeId& room_to_reason);
+  void getObjectPointcloud(const SceneGraphNode& room,
                            pcl::PointCloud<pcl::PointXYZRGB>::Ptr object_cloud,
                            std::vector<uint32_t>& instance_ids) const;
 
   bool areElementsInSet(const std::array<size_t, 3>& arr,
                         const std::set<size_t>& set) const;
-  void getObjectMeshes(const SharedDsgInfo& dsg,
-                       const SceneGraphNode& room,
+  void getObjectMeshes(const SceneGraphNode& room,
                        std::vector<NodeId>& object_ids,
                        std::vector<pcl::PolygonMesh::Ptr>& object_meshes,
                        std::vector<uint32_t>& mesh_labels) const;
 
-  void updateGraph(DynamicSceneGraph::Ptr& graph,
-                   ReasoningOutput& reasoning_data,
-                   std::vector<NodeId>& object_ids) const;
+  void updateGraph(const ReasoningOutput& reasoning_data,
+                   const std::vector<NodeId>& object_ids) const;
 
+  std::atomic<bool> should_shutdown_{false};
   ThreeDSSGConfig config_;
   SharedModuleState::Ptr state_;
   NodeId prev_room_node_id_;
   bool initialized_{false};
   std::unique_ptr<PointNeighborSearch> neighbor_search_;
-  std::unique_ptr<Reasoning> reasoning_;
+  SharedDsgInfo::Ptr dsg_;
+  Reasoning::Ptr reasoning_;
 };
 
 }  // namespace hydra

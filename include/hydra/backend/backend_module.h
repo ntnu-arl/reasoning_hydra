@@ -35,12 +35,18 @@
 #pragma once
 #include <config_utilities/factory.h>
 #include <kimera_pgmo/kimera_pgmo_interface.h>
+#include <pcl/PolygonMesh.h>
 #include <spark_dsg/scene_graph_logger.h>
 
+#include <list>
 #include <map>
 #include <memory>
 #include <mutex>
+#include <queue>
+#include <string>
 #include <thread>
+#include <unordered_map>
+#include <vector>
 
 #include "hydra/backend/merge_tracker.h"
 #include "hydra/backend/pgmo_configs.h"
@@ -75,7 +81,10 @@ class BackendModule : public kimera_pgmo::KimeraPgmoInterface, public Module {
   using Ptr = std::shared_ptr<BackendModule>;
   using Sink = OutputSink<uint64_t,
                           const DynamicSceneGraph&,
-                          const kimera_pgmo::DeformationGraph&>;
+                          const kimera_pgmo::DeformationGraph&,
+                          const std::vector<pcl::PolygonMesh::Ptr>&,
+                          const std::vector<uint32_t>&,
+                          const std::vector<NodeId>&>;
 
   struct Config {
     bool visualize_place_factors = true;
@@ -215,7 +224,8 @@ class BackendModule : public kimera_pgmo::KimeraPgmoInterface, public Module {
   MergeTracker merge_tracker;
   std::map<LayerId, UpdateFunctor::Ptr> layer_functors_;
   UpdateFunctor::Ptr agent_functor_;
-  std::unique_ptr<UpdateReasoningFunctor> reasoning_functor_;
+  UpdateReasoningFunctor::Ptr reasoning_functor_;
+  std::unique_ptr<std::thread> reasoning_thread_;
 
   BackendModuleStatus status_;
   SceneGraphLogger backend_graph_logger_;
@@ -232,6 +242,10 @@ class BackendModule : public kimera_pgmo::KimeraPgmoInterface, public Module {
   std::unique_ptr<std::thread> zmq_thread_;
   std::unique_ptr<spark_dsg::ZmqReceiver> zmq_receiver_;
   std::unique_ptr<spark_dsg::ZmqSender> zmq_sender_;
+
+  std::vector<pcl::PolygonMesh::Ptr> object_meshes_;
+  std::vector<uint32_t> object_labels_;
+  std::vector<NodeId> object_ids_;
 
   // TODO(lschmid): This mutex currently simply locks all data for manipulation.
   std::mutex mutex_;

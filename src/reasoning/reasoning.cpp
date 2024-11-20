@@ -8,6 +8,12 @@ Reasoning::Reasoning(const ReasoningConfig& config) : config_(config) {
       << "Inference script directory does not exist: "
       << config_.method_inference_script_dir;
 
+  // Make input and output directories if they don't exist
+  if (config_.save_objects) {
+    std::filesystem::create_directories(std::filesystem::path(config_.input_folder));
+    std::filesystem::create_directories(std::filesystem::path(config_.output_folder));
+  }
+
   // Read the relationships file
   CHECK(hydra::readLines(config_.relations_file, relationships_))
       << "Failed to read relationships file";
