@@ -18,6 +18,7 @@ struct ThreeDSSGConfig {
   size_t num_sampling_points;
   double edge_prob_threshold;
   float edges_max_radius;
+  double room_change_threshold;
 };
 
 void declare_config(ReasoningConfig& config);

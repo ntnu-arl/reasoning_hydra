@@ -164,19 +164,11 @@ void UpdateReasoningFunctor::updateGraph(const ReasoningOutput& reasoning_data,
     }
     for (size_t j = 0; j < reasoning_data.edge_probs[i].size(); ++j) {
       if (reasoning_data.edge_probs[i][j] > config_.edge_prob_threshold) {
-        if (!edge_exists || edge->source_id == object_ids[from]) {
-          edge->relationship_source_target.classes.push_back(
-              reasoning_->getRelationship(j));
-          edge->relationship_source_target.probabilities.push_back(
-              reasoning_data.edge_probs[i][j]);
-          edge->color_source_target = reasoning_->getRelationshipColor(j);
-        } else if (edge->source_id == object_ids[to]) {
-          edge->relationship_target_source.classes.push_back(
-              reasoning_->getRelationship(j));
-          edge->relationship_target_source.probabilities.push_back(
-              reasoning_data.edge_probs[i][j]);
-          edge->color_target_source = reasoning_->getRelationshipColor(j);
-        }
+        const auto& probability = reasoning_data.edge_probs[i][j];
+        const auto relationship = reasoning_->getRelationship(j);
+        const auto color = reasoning_->getRelationshipColor(j);
+        edge->setRelationshipProperty(
+            object_ids[from], relationship, probability, color);
       }
     }
 
@@ -190,31 +182,10 @@ void UpdateReasoningFunctor::updateGraph(const ReasoningOutput& reasoning_data,
 
 bool UpdateReasoningFunctor::detectRoomChange(NodeId& room_to_reason_id) {
   // Get place nodes that have parents (i.e. are in rooms)
-  std::vector<NodeId> latest_places_vec;
-  std::vector<Eigen::Vector3f> place_centroids;
+  room_to_reason_id = prev_room_node_id_;
+  double closest_distance = std::numeric_limits<double>::max();
+  double closest_current_room_distance = std::numeric_limits<double>::max();
   const auto& places = dsg_->graph->getLayer(DsgLayers::PLACES).nodes();
-
-  for (const auto& [place_id, place] : places) {
-    if (NodeSymbol(place_id).category() == 'p' && place->hasParent()) {
-      place_centroids.emplace_back(
-          place->attributes<NodeAttributes>().position.cast<float>());
-      latest_places_vec.emplace_back(place_id);
-    }
-  }
-
-  if (place_centroids.empty()) {
-    return false;
-  }
-
-  if (!neighbor_search_) {
-    neighbor_search_ = std::make_unique<PointNeighborSearch>(place_centroids);
-  } else {
-    neighbor_search_.reset(new PointNeighborSearch(place_centroids));
-  }
-
-  // Find the closest place to the current pose
-  size_t closest_place_id;
-  float distance_squared;
   const auto current_pose =
       dsg_->graph->dynamicLayersOfType(DsgLayers::AGENTS)
           .begin()
@@ -224,24 +195,30 @@ bool UpdateReasoningFunctor::detectRoomChange(NodeId& room_to_reason_id) {
                                    ->second->numNodes() -
                                1)
           .cast<float>();
-  bool nn_success =
-      neighbor_search_->search(current_pose, distance_squared, closest_place_id);
+  for (const auto& [place_id, place] : places) {
+    if (NodeSymbol(place_id).category() == 'p' && place->hasParent()) {
+      const auto& place_pose =
+          place->attributes<NodeAttributes>().position.cast<float>();
+      const auto distance_to_pose = (place_pose - current_pose).norm();
+      if (distance_to_pose < closest_distance) {
+        closest_distance = distance_to_pose;
+        room_to_reason_id = *(place->parents().begin());
+      }
+      if (place->parents().find(prev_room_node_id_) != place->parents().end() &&
+          distance_to_pose < closest_current_room_distance) {
+        closest_current_room_distance = distance_to_pose;
+      }
+    }
+  }
 
-  if (!nn_success) {
+  if (closest_current_room_distance < config_.room_change_threshold ||
+      room_to_reason_id == prev_room_node_id_) {
     return false;
   }
 
-  const auto& closest_place_node_id = latest_places_vec[closest_place_id];
-  NodeId closest_room_node_id = *(places.at(closest_place_node_id)->parents().begin());
-
-  // If the closest place is in the same room as we were previously, then we haven't
-  // changed rooms
-  if (closest_room_node_id == prev_room_node_id_) {
-    return false;
-  }
-
+  NodeId aux_room_to_reason_id = room_to_reason_id;
   room_to_reason_id = prev_room_node_id_;
-  prev_room_node_id_ = closest_room_node_id;
+  prev_room_node_id_ = aux_room_to_reason_id;
 
   return true;
 }

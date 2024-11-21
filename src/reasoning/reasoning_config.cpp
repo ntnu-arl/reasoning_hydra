@@ -23,6 +23,7 @@ void declare_config(ThreeDSSGConfig& conf) {
   field(conf.num_sampling_points, "num_sampling_points");
   field(conf.edge_prob_threshold, "edge_prob_threshold");
   field(conf.edges_max_radius, "edges_max_radius", "m");
+  field(conf.room_change_threshold, "room_change_threshold", "m");
 }
 
 }  // namespace hydra

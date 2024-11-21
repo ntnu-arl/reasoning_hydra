@@ -17,7 +17,6 @@
 #include "hydra/reasoning/reasoning.h"
 #include "hydra/reasoning/reasoning_config.h"
 #include "hydra/reasoning/reasoning_output.h"
-#include "hydra/utils/nearest_neighbor_utilities.h"
 #include "hydra/utils/pointcloud_utilities.h"
 #include "hydra/utils/timing_utilities.h"
 
@@ -61,7 +60,6 @@ class UpdateReasoningFunctor {
   bool initialized_{false};
   SharedDsgInfo::Ptr dsg_;
   Reasoning::Ptr reasoning_;
-  std::unique_ptr<PointNeighborSearch> neighbor_search_;
   std::unique_ptr<pcl::KdTreeFLANN<pcl::PointXYZ>> object_centroids_tree_;
 };
 

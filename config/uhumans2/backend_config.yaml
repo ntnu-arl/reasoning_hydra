@@ -75,11 +75,12 @@ reasoning_functor:
     output_folder: /home/albert/Desktop/test_reasoning/output
     method_inference_script_dir: /home/albert/workspaces/reasoning_methods/3DSSG/
     relations_file: /home/albert/workspaces/reasoning_methods/3DSSG/files/relationships.txt
-    save_objects: true
+    save_objects: false
   normal_estimation_radius: 0.15
   num_sampling_points: 256
   edge_prob_threshold: 0.5
-  edges_max_radius: 2.1
+  edges_max_radius: 2.5
+  room_change_threshold: 1.0
 use_2d_places: true
 places2d_config:
     allow_places_merge: true
