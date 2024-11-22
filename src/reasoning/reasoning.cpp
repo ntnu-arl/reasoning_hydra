@@ -107,4 +107,12 @@ spark_dsg::Color Reasoning::getRelationshipColor(size_t index) const {
   return getRelationshipColor(relationships_[index]);
 }
 
+const std::vector<spark_dsg::Color> Reasoning::getRelationshipColors() const {
+  std::vector<spark_dsg::Color> colors(relationships_.size());
+  for (size_t i = 0; i < relationships_.size(); ++i) {
+    colors[i] = relationship_colors_.at(relationships_[i]);
+  }
+  return colors;
+}
+
 }  // namespace hydra

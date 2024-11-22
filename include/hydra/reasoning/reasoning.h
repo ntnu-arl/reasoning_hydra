@@ -23,6 +23,8 @@ class Reasoning {
   bool run(ReasoningOutput& reasoning_data, const std::string& room_name) const;
 
   std::string getRelationship(size_t index) const;
+  const std::vector<std::string>& getRelationships() const { return relationships_; }
+  const std::vector<spark_dsg::Color> getRelationshipColors() const;
   spark_dsg::Color getRelationshipColor(const std::string& relationship) const;
   spark_dsg::Color getRelationshipColor(size_t index) const;
 

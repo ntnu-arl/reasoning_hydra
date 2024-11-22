@@ -135,7 +135,6 @@ void UpdateReasoningFunctor::updateGraph(const ReasoningOutput& reasoning_data,
     size_t to = reasoning_data.edge_indices[i].second;
 
     EdgeAttributes::Ptr edge = std::make_unique<EdgeAttributes>(1.0);
-
     bool edge_exists = graph->hasEdge(object_ids[from], object_ids[to]);
     if (edge_exists) {
       edge = graph->getEdge(object_ids[from], object_ids[to]).info->clone();
@@ -162,15 +161,11 @@ void UpdateReasoningFunctor::updateGraph(const ReasoningOutput& reasoning_data,
         }
       }
     }
-    for (size_t j = 0; j < reasoning_data.edge_probs[i].size(); ++j) {
-      if (reasoning_data.edge_probs[i][j] > config_.edge_prob_threshold) {
-        const auto& probability = reasoning_data.edge_probs[i][j];
-        const auto relationship = reasoning_->getRelationship(j);
-        const auto color = reasoning_->getRelationshipColor(j);
-        edge->setRelationshipProperty(
-            object_ids[from], relationship, probability, color);
-      }
-    }
+    edge->min_prob = config_.edge_prob_threshold;
+    edge->setRelationshipProperty(object_ids[from],
+                                  reasoning_->getRelationships(),
+                                  reasoning_data.edge_probs[i],
+                                  reasoning_->getRelationshipColors());
 
     if (edge_exists) {
       graph->setEdgeAttributes(object_ids[from], object_ids[to], std::move(edge));
