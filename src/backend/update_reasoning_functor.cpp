@@ -349,6 +349,9 @@ void UpdateReasoningFunctor::getObjectPointcloud(
 
 void UpdateReasoningFunctor::getEdgeIndices(
     ObjectsAttributes::Ptr& objects_attributes) const {
+  if (objects_attributes->meshes.empty()) {
+    return;
+  }
   // Get meshes centroids
   pcl::PointCloud<pcl::PointXYZ>::Ptr mesh_centroids(
       new pcl::PointCloud<pcl::PointXYZ>);
