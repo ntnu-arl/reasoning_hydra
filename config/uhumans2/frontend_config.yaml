@@ -62,6 +62,10 @@ freespace_places:
   tsdf_interpolator:
     type: downsample
     ratio: 2
+place_features_fusion:
+  type: place_features_clusters
+  min_distance: 0.48
+  max_clusters: 25
 use_frontiers: false
 frontier_places:
   type: "voxel_clustering"

@@ -55,6 +55,7 @@
 #include "hydra/frontend/freespace_places_interface.h"
 #include "hydra/frontend/frontier_places_interface.h"
 #include "hydra/frontend/mesh_segmenter.h"
+#include "hydra/frontend/place_features_fusion.h"
 #include "hydra/frontend/surface_places_interface.h"
 #include "hydra/odometry/pose_graph_from_odom.h"
 #include "hydra/reconstruction/reconstruction_output.h"
@@ -93,6 +94,7 @@ class FrontendModule : public Module {
     config::VirtualConfig<FreespacePlacesInterface> freespace_places;
     bool use_frontiers = false;
     config::VirtualConfig<FrontierPlacesInterface> frontier_places;
+    config::VirtualConfig<PlaceFeaturesFusion> place_features_fusion;
     std::vector<Sink::Factory> sinks;
   } const config;
 
@@ -190,6 +192,7 @@ class FrontendModule : public Module {
   std::unique_ptr<SurfacePlacesInterface> surface_places_;
   std::unique_ptr<FreespacePlacesInterface> freespace_places_;
   std::unique_ptr<FrontierPlacesInterface> frontier_places_;
+  std::unique_ptr<PlaceFeaturesFusion> place_features_fusion_;
 
   SceneGraphLogger frontend_graph_logger_;
   LogSetup::Ptr logs_;

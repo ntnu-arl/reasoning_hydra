@@ -276,6 +276,7 @@ void UpdateReasoningFunctor::getObjectMeshes(
         if (!saved_label) {
           objects_attributes->ids.push_back(object_id);
           objects_attributes->labels.push_back(object_attrs.semantic_label);
+          objects_attributes->features.push_back(object_attrs.semantic_feature);
           saved_label = true;
         }
       }

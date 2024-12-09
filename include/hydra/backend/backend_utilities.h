@@ -52,12 +52,14 @@ struct ObjectsAttributes {
   std::vector<uint32_t> labels;
   std::vector<NodeId> ids;
   std::vector<std::pair<size_t, size_t>> edge_indices;
+  std::vector<Eigen::VectorXf> features;
 
   void clear() {
     meshes.clear();
     labels.clear();
     ids.clear();
     edge_indices.clear();
+    features.clear();
   }
 };
 }  // namespace hydra

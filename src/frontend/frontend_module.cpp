@@ -88,6 +88,8 @@ void declare_config(FrontendModule::Config& config) {
   field(config.use_frontiers, "use_frontiers");
   config.frontier_places.setOptional();
   field(config.frontier_places, "frontier_places");
+  config.place_features_fusion.setOptional();
+  field(config.place_features_fusion, "place_features_fusion");
 }
 
 FrontendModule::FrontendModule(const Config& config,
@@ -103,6 +105,7 @@ FrontendModule::FrontendModule(const Config& config,
       surface_places_(config.surface_places.create()),
       freespace_places_(config.freespace_places.create()),
       frontier_places_(config.frontier_places.create()),
+      place_features_fusion_(config.place_features_fusion.create()),
       sinks_(Sink::instantiate(config.sinks)) {
   if (!config.use_frontiers) {
     frontier_places_.reset();
@@ -747,6 +750,9 @@ void FrontendModule::addPlaceObjectEdges(uint64_t timestamp_ns) {
 }
 
 void FrontendModule::updatePlaceFeatures(const Eigen::VectorXf& feature_vector) {
+  if (!place_features_fusion_) {
+    return;
+  }
   const auto& agent_node_layer =
       dsg_->graph->dynamicLayersOfType(DsgLayers::AGENTS).begin()->second;
   if (agent_node_layer->numNodes() == 0) {
@@ -757,14 +763,7 @@ void FrontendModule::updatePlaceFeatures(const Eigen::VectorXf& feature_vector) 
   places_nn_finder_->find(current_pose, 1, false, [&](NodeId place_id, size_t, double) {
     auto& place = dsg_->graph->getNode(place_id);
     auto& attrs = place.attributes<PlaceNodeAttributes>();
-    if (attrs.num_observations == 0) {
-      attrs.feature_vector = feature_vector;
-    } else {
-      attrs.feature_vector =
-          (attrs.feature_vector * attrs.num_observations + feature_vector) /
-          (attrs.num_observations + 1);
-    }
-    attrs.num_observations++;
+    place_features_fusion_->updateFeatures(attrs, feature_vector);
   });
 }
 
