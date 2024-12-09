@@ -6,7 +6,7 @@
     uri: git@github.com:ntnu-arl/hydra_ros.git
 - git:
     local-name: kimera_pgmo
-    uri: git@github.com:MIT-SPARK/Kimera-PGMO.git
+    uri: git@github.com:ntnu-arl/kimera_pgmo.git
     version: future
 - git:
     local-name: kimera_rpgo

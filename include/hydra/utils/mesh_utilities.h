@@ -50,6 +50,12 @@ bool updateObjectGeometry(const spark_dsg::Mesh& mesh,
                           const std::vector<size_t>* indices = nullptr,
                           std::optional<BoundingBox::Type> type = std::nullopt);
 
+void mergeObjectSemanticFeature(const ObjectNodeAttributes& other_attrs,
+                                ObjectNodeAttributes& attrs);
+
+void updateObjectSemanticFeature(const Eigen::VectorXf& semantic_feature,
+                                 ObjectNodeAttributes& attrs);
+
 MeshLayer::Ptr getActiveMesh(const MeshLayer& mesh_layer,
                              const BlockIndices& archived_blocks);
 

@@ -83,14 +83,31 @@ bool MLESemanticIntegrator::isValidLabel(uint32_t label) const {
   return canIntegrate(label);
 }
 
-void MLESemanticIntegrator::updateLikelihoods(uint32_t label,
-                                              SemanticVoxel& voxel) const {
+void MLESemanticIntegrator::updateLikelihoods(
+    uint32_t label,
+    const std::optional<Eigen::VectorXf>& semantic_feature_vector,
+    SemanticVoxel& voxel) const {
   if (voxel.empty) {
     voxel.empty = false;
     voxel.semantic_likelihoods.setConstant(total_labels_, init_likelihood_);
   }
   voxel.semantic_likelihoods += observation_likelihoods_.col(label);
   voxel.semantic_likelihoods.maxCoeff(&voxel.semantic_label);
+  if (voxel.num_observations == 0) {
+    voxel.feature_vector = semantic_feature_vector;
+  } else {
+    if (voxel.feature_vector && semantic_feature_vector) {
+      voxel.feature_vector.value() =
+          (voxel.num_observations * voxel.feature_vector.value() +
+           semantic_feature_vector.value()) /
+          (voxel.num_observations + 1);
+    } else if (semantic_feature_vector) {
+      voxel.feature_vector = semantic_feature_vector;
+    }
+  }
+  if (semantic_feature_vector) {
+    voxel.num_observations++;
+  }
 }
 
 void declare_config(MLESemanticIntegrator::Config& config) {

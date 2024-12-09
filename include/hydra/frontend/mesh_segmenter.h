@@ -33,7 +33,12 @@
  * purposes notwithstanding any copyright notation herein.
  * -------------------------------------------------------------------------- */
 #pragma once
+#include <map>
 #include <memory>
+#include <set>
+#include <string>
+#include <unordered_set>
+#include <vector>
 
 #include "hydra/common/dsg_types.h"
 #include "hydra/common/output_sink.h"
@@ -47,6 +52,7 @@ namespace hydra {
 struct Cluster {
   Eigen::Vector3d centroid;
   std::vector<size_t> indices;
+  std::optional<Eigen::VectorXf> semantic_feature;
 };
 
 using LabelIndices = std::map<uint32_t, std::vector<size_t>>;
@@ -100,7 +106,9 @@ class MeshSegmenter {
                          const SceneGraphNode& node,
                          uint64_t timestamp);
 
-  void mergeActiveNodes(DynamicSceneGraph& graph, uint32_t label);
+  void mergeActiveNodes(DynamicSceneGraph& graph,
+                        uint32_t label,
+                        bool semantic_feature);
 
  private:
   NodeSymbol next_node_id_;

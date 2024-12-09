@@ -77,6 +77,7 @@ class ProjectiveIntegrator {
     float sdf = 0.0f;
     float weight = 0.0f;
     int32_t label = -1;
+    std::optional<Eigen::VectorXf> semantic_feature_vector;
   };
 
   explicit ProjectiveIntegrator(const ProjectiveIntegratorConfig& config);
@@ -89,10 +90,11 @@ class ProjectiveIntegrator {
    * @param data Input data to use for the update.
    * @param map Map to update.
    * @param allocate_blocks Allocate blocks to update before integrating
+   * @returns List of blocks that were updated.
    */
-  void updateMap(const InputData& data,
-                 VolumetricMap& map,
-                 bool allocate_blocks = true) const;
+  BlockIndices updateMap(const InputData& data,
+                         VolumetricMap& map,
+                         bool allocate_blocks = true) const;
 
   /**
    * @brief Update all specified blocks in the map with the given data in parallel.

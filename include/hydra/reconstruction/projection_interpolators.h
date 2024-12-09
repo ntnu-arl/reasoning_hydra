@@ -49,9 +49,12 @@
 
 #include <config_utilities/factory.h>
 
+#include <Eigen/Core>
 #include <memory>
 #include <opencv2/core/mat.hpp>
 #include <string>
+#include <unordered_map>
+#include <vector>
 
 #include "hydra/common/common_types.h"
 
@@ -112,6 +115,16 @@ class ProjectionInterpolator {
    */
   virtual int interpolateID(const cv::Mat& id_image,
                             const InterpolationWeights& weights) const = 0;
+
+  /**
+   * @brief Compute the semantic features based on the provided weights.
+   * @param features Features tensor to interpolate in.
+   * @return Eigen::VectorXf The interpolated features
+   */
+  virtual std::optional<Eigen::VectorXf> interpolateFeatures(
+      const std::optional<cv::Mat>& features_mask,
+      std::optional<std::unordered_map<uint16_t, Eigen::VectorXf>> semantic_features,
+      const InterpolationWeights& weights) const = 0;
 };
 
 /**
@@ -132,6 +145,11 @@ class InterpolatorNearest : public ProjectionInterpolator {
 
   int interpolateID(const cv::Mat& id_image,
                     const InterpolationWeights& weights) const override;
+
+  std::optional<Eigen::VectorXf> interpolateFeatures(
+      const std::optional<cv::Mat>& features_mask,
+      std::optional<std::unordered_map<uint16_t, Eigen::VectorXf>> semantic_features,
+      const InterpolationWeights& weights) const override;
 
  private:
   inline static const auto registration_ =
@@ -155,6 +173,11 @@ class InterpolatorBilinear : public ProjectionInterpolator {
                          const InterpolationWeights& weights) const override;
   int interpolateID(const cv::Mat& id_image,
                     const InterpolationWeights& weights) const override;
+
+  std::optional<Eigen::VectorXf> interpolateFeatures(
+      const std::optional<cv::Mat>& features_mask,
+      std::optional<std::unordered_map<uint16_t, Eigen::VectorXf>> semantic_features,
+      const InterpolationWeights& weights) const override;
 
  private:
   inline static const auto registration_ =
@@ -181,6 +204,11 @@ class InterpolatorAdaptive : public InterpolatorBilinear {
 
   int interpolateID(const cv::Mat& id_image,
                     const InterpolationWeights& weights) const override;
+
+  std::optional<Eigen::VectorXf> interpolateFeatures(
+      const std::optional<cv::Mat>& features_mask,
+      std::optional<std::unordered_map<uint16_t, Eigen::VectorXf>> semantic_features,
+      const InterpolationWeights& weights) const override;
 
  private:
   inline static const auto registration_ =

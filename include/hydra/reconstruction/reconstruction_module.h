@@ -37,7 +37,11 @@
 
 #include <Eigen/Geometry>
 #include <memory>
+#include <set>
+#include <string>
 #include <thread>
+#include <utility>
+#include <vector>
 
 #include "hydra/common/input_queue.h"
 #include "hydra/common/module.h"
@@ -113,6 +117,8 @@ class ReconstructionModule : public Module {
   BlockIndices findBlocksToArchive(const Eigen::Vector3f& center) const;
 
   void fillOutput(ReconstructionOutput& output);
+
+  void clearSemanticFeatures(const BlockIndices& block_indices);
 
  protected:
   std::atomic<bool> should_shutdown_{false};

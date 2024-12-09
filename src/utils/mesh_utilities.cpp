@@ -80,6 +80,33 @@ bool updateObjectGeometry(const spark_dsg::Mesh& mesh,
   }
 }
 
+void mergeObjectSemanticFeature(const ObjectNodeAttributes& other_attrs,
+                                ObjectNodeAttributes& attrs) {
+  if (other_attrs.num_observations > 0 && attrs.num_observations > 0) {
+    attrs.semantic_feature =
+        (attrs.semantic_feature * attrs.num_observations +
+         other_attrs.semantic_feature * other_attrs.num_observations) /
+        (attrs.num_observations + other_attrs.num_observations);
+    attrs.num_observations += other_attrs.num_observations;
+  } else if (other_attrs.num_observations > 0) {
+    attrs.semantic_feature = other_attrs.semantic_feature;
+    attrs.num_observations = other_attrs.num_observations;
+  }
+}
+
+void updateObjectSemanticFeature(const Eigen::VectorXf& semantic_feature,
+                                 ObjectNodeAttributes& attrs) {
+  if (attrs.num_observations > 0) {
+    attrs.semantic_feature =
+        (attrs.semantic_feature * attrs.num_observations + semantic_feature) /
+        (attrs.num_observations + 1);
+    ++attrs.num_observations;
+  } else {
+    attrs.semantic_feature = semantic_feature;
+    attrs.num_observations = 1;
+  }
+}
+
 MeshLayer::Ptr getActiveMesh(const MeshLayer& mesh_layer,
                              const BlockIndices& archived_blocks) {
   auto active_mesh = std::make_shared<MeshLayer>(mesh_layer.blockSize());
@@ -88,7 +115,8 @@ MeshLayer::Ptr getActiveMesh(const MeshLayer& mesh_layer,
     if (archived_set.count(block)) {
       continue;
     }
-    active_mesh->allocateBlock(block) = mesh_layer.getBlock(block);
+    auto& block_data = mesh_layer.getBlock(block);
+    active_mesh->allocateBlock(block) = block_data;
   }
   return active_mesh;
 }

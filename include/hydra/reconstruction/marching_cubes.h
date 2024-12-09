@@ -53,6 +53,7 @@ struct SdfPoint {
   Eigen::Vector3f pos;
   Color color;
   std::optional<uint32_t> label;
+  std::optional<Eigen::VectorXf> semantic_feature;
   OccupancyVoxel* vertex_voxel = nullptr;
 };
 

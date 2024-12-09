@@ -65,9 +65,9 @@ ProjectiveIntegrator::ProjectiveIntegrator(const ProjectiveIntegratorConfig& con
       interpolator_(config::create<ProjectionInterpolator>(config.interp_method)),
       semantic_integrator_(config.semantic_integrator.create()) {}
 
-void ProjectiveIntegrator::updateMap(const InputData& data,
-                                     VolumetricMap& map,
-                                     bool allocate_blocks) const {
+BlockIndices ProjectiveIntegrator::updateMap(const InputData& data,
+                                             VolumetricMap& map,
+                                             bool allocate_blocks) const {
   auto& tsdf = map.getTsdfLayer();
 
   // Allocate all blocks that could be seen by the sensor.
@@ -83,11 +83,15 @@ void ProjectiveIntegrator::updateMap(const InputData& data,
   updateBlocks(block_indices, data, map);
 
   // De-allocate blocks that were not updated.
+  BlockIndices updated_blocks;
   for (const auto& idx : new_blocks) {
     if (!tsdf.getBlock(idx).updated) {
       map.removeBlock(idx);
+    } else {
+      updated_blocks.push_back(idx);
     }
   }
+  return updated_blocks;
 }
 
 void ProjectiveIntegrator::updateBlocks(const BlockIndices& block_indices,
@@ -228,7 +232,8 @@ void ProjectiveIntegrator::updateVoxel(const InputData& data,
   }
 
   if (semantic_integrator_->isValidLabel(measurement.label)) {
-    semantic_integrator_->updateLikelihoods(measurement.label, *voxels.semantic);
+    semantic_integrator_->updateLikelihoods(
+        measurement.label, measurement.semantic_feature_vector, *voxels.semantic);
   }
 }
 
@@ -291,6 +296,9 @@ bool ProjectiveIntegrator::computeLabel(const InputData& data,
   if (data.label_image.empty() || !semantic_integrator_ || !is_surface) {
     return true;
   }
+
+  measurement.semantic_feature_vector = interpolator_->interpolateFeatures(
+      data.features_mask, data.semantic_features, measurement.interpolation_weights);
   measurement.label =
       interpolator_->interpolateID(data.label_image, measurement.interpolation_weights);
   return semantic_integrator_->canIntegrate(measurement.label);

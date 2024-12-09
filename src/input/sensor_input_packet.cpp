@@ -62,6 +62,10 @@ bool ImageInputPacket::fillInputData(InputData& msg) const {
   }
   msg.depth_image = depth;
   msg.label_image = labels;
+  msg.features_mask = features_mask;
+  msg.semantic_features = semantic_features;
+  msg.image_feature = image_feature;
+
   return true;
 }
 

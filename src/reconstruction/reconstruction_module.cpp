@@ -190,9 +190,10 @@ bool ReconstructionModule::update(const InputPacket& msg, bool full_update) {
     return false;
   }
 
+  BlockIndices updated_blocks;
   {  // timing scope
     ScopedTimer timer("places/tsdf", msg.timestamp_ns);
-    tsdf_integrator_->updateMap(*data, *map_);
+    updated_blocks = tsdf_integrator_->updateMap(*data, *map_);
   }  // timing scope
 
   if (footprint_integrator_) {
@@ -222,6 +223,9 @@ bool ReconstructionModule::update(const InputPacket& msg, bool full_update) {
   output->sensor_data = data;
   fillOutput(*output);
 
+  // Remove semantic features from map and mesh
+  clearSemanticFeatures(updated_blocks);
+
   Sink::callAll(sinks_, msg.timestamp_ns, data->getSensorPose(), tsdf, *output);
 
   if (output_queue_) {
@@ -234,6 +238,22 @@ bool ReconstructionModule::update(const InputPacket& msg, bool full_update) {
   }
 
   return true;
+}
+
+void ReconstructionModule::clearSemanticFeatures(const BlockIndices& block_indices) {
+  // Start with semantic layer
+  for (const auto& idx : block_indices) {
+    auto blocks = map_->getBlock(idx);
+    for (size_t i = 0; i < blocks.tsdf->numVoxels(); ++i) {
+      auto voxels = blocks.getVoxels(i);
+      voxels.semantic->feature_vector = std::nullopt;
+    }
+    // Continue with mesh layer
+    auto mesh = map_->getMeshLayer().getBlockPtr(idx);
+    for (auto& semantic_feature : mesh->semantic_features) {
+      semantic_feature = std::nullopt;
+    }
+  }
 }
 
 // TODO(nathan) push to map?

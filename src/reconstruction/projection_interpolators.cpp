@@ -83,6 +83,23 @@ int InterpolatorNearest::interpolateID(const cv::Mat& id_image,
   return id_image.at<int32_t>(weights.v, weights.u);
 }
 
+std::optional<Eigen::VectorXf> InterpolatorNearest::interpolateFeatures(
+    const std::optional<cv::Mat>& features_mask,
+    std::optional<std::unordered_map<uint16_t, Eigen::VectorXf>> semantic_features,
+    const InterpolationWeights& weights) const {
+  if (!features_mask || !semantic_features) {
+    return std::nullopt;
+  }
+  if (semantic_features.value().size() == 0) {
+    return std::nullopt;
+  }
+  const auto feature_index = features_mask.value().at<uint16_t>(weights.v, weights.u);
+  if (feature_index == 0) {
+    return std::nullopt;
+  }
+  return semantic_features.value().at(feature_index);
+}
+
 InterpolationWeights InterpolatorBilinear::computeWeights(float u,
                                                           float v,
                                                           const cv::Mat& img) const {
@@ -141,6 +158,60 @@ int InterpolatorBilinear::interpolateID(const cv::Mat& id_image,
       ->first;
 }
 
+std::optional<Eigen::VectorXf> InterpolatorBilinear::interpolateFeatures(
+    const std::optional<cv::Mat>& features_mask,
+    std::optional<std::unordered_map<uint16_t, Eigen::VectorXf>> semantic_features,
+    const InterpolationWeights& weights) const {
+  if (!features_mask || !semantic_features) {
+    return std::nullopt;
+  }
+  if (semantic_features.value().size() == 0) {
+    return std::nullopt;
+  }
+  const auto feature_index = features_mask.value().at<uint16_t>(weights.v, weights.u);
+  if (feature_index == 0) {
+    return std::nullopt;
+  }
+  const size_t feature_size = semantic_features.value().begin()->second.size();
+  auto w0 = weights.w0;
+  auto w1 = weights.w1;
+  auto w2 = weights.w2;
+  auto w3 = weights.w3;
+
+  Eigen::VectorXf c0, c1, c2, c3;
+  // Lambda to process weights and feature indices
+  auto process_feature =
+      [&](float& weight, int v_offset, int u_offset, Eigen::VectorXf& result) {
+        auto& feature_index = features_mask.value().at<uint16_t>(weights.v + v_offset,
+                                                                 weights.u + u_offset);
+        if (feature_index == 0 || semantic_features.value().count(feature_index) == 0) {
+          weight = 0.f;
+          result = Eigen::VectorXf::Zero(feature_size);
+        } else {
+          result = semantic_features.value().at(feature_index);
+        }
+      };
+
+  // Apply the lambda for each weight and offset combination
+  process_feature(w0, 0, 0, c0);
+  process_feature(w1, 1, 0, c1);
+  process_feature(w2, 0, 1, c2);
+  process_feature(w3, 1, 1, c3);
+
+  const float normalizer = w0 + w1 + w2 + w3;
+
+  if (normalizer == 0.f) {
+    return std::nullopt;
+  }
+
+  w0 /= normalizer;
+  w1 /= normalizer;
+  w2 /= normalizer;
+  w3 /= normalizer;
+
+  return w0 * c0 + w1 * c1 + w2 * c2 + w3 * c3;
+}
+
 InterpolationWeights InterpolatorAdaptive::computeWeights(
     float u, float v, const cv::Mat& range_image) const {
   // NOTE(lschmid): This is currently hard coded. Should probably be a param or similar.
@@ -195,6 +266,27 @@ int InterpolatorAdaptive::interpolateID(const cv::Mat& id_image,
     return InterpolatorBilinear::interpolateID(id_image, weights);
   }
   return id_image.at<int32_t>(weights.v, weights.u);
+}
+
+std::optional<Eigen::VectorXf> InterpolatorAdaptive::interpolateFeatures(
+    const std::optional<cv::Mat>& features_mask,
+    std::optional<std::unordered_map<uint16_t, Eigen::VectorXf>> semantic_features,
+    const InterpolationWeights& weights) const {
+  if (weights.use_bilinear) {
+    return InterpolatorBilinear::interpolateFeatures(
+        features_mask, semantic_features, weights);
+  }
+  if (!features_mask || !semantic_features) {
+    return std::nullopt;
+  }
+  if (semantic_features.value().size() == 0) {
+    return std::nullopt;
+  }
+  const auto feature_index = features_mask.value().at<uint16_t>(weights.v, weights.u);
+  if (feature_index == 0) {
+    return std::nullopt;
+  }
+  return semantic_features.value().at(feature_index);
 }
 
 }  // namespace hydra

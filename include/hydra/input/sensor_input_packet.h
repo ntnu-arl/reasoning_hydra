@@ -33,6 +33,12 @@
  * purposes notwithstanding any copyright notation herein.
  * -------------------------------------------------------------------------- */
 #pragma once
+
+#include <memory>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
 #include "hydra/input/input_data.h"
 
 namespace hydra {
@@ -54,6 +60,7 @@ struct SensorInputPacket {
 };
 
 struct ImageInputPacket : public SensorInputPacket {
+  using Ptr = std::shared_ptr<ImageInputPacket>;
   explicit ImageInputPacket(uint64_t stamp, size_t sensor_id);
 
   bool fillInputData(InputData& msg) const override;
@@ -61,6 +68,9 @@ struct ImageInputPacket : public SensorInputPacket {
   cv::Mat color;
   cv::Mat depth;
   cv::Mat labels;
+  std::optional<cv::Mat> features_mask;
+  std::optional<std::unordered_map<uint16_t, Eigen::VectorXf>> semantic_features;
+  std::optional<Eigen::VectorXf> image_feature;
   bool color_is_bgr = false;  // Otherwise, color is RGB already.
 };
 

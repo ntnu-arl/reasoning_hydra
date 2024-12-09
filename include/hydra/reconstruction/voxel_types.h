@@ -39,6 +39,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 
 #include "hydra/common/common_types.h"
 
@@ -89,6 +90,10 @@ struct SemanticVoxel {
   // TODO(nathan) top-K!
   //! Log-likelihood priors of each label
   Eigen::VectorXf semantic_likelihoods;
+  //! OpenVocabulary feature vector
+  std::optional<Eigen::VectorXf> feature_vector;
+  //! Number of observations
+  uint32_t num_observations = 0;
   //! Whether or not the voxel has been initialized
   bool empty = true;
 };
@@ -133,8 +138,12 @@ struct TsdfBlock : public spatial_hash::VoxelBlock<TsdfVoxel> {
 struct MeshBlock : public Mesh, public spatial_hash::Block {
   using Ptr = std::shared_ptr<MeshBlock>;
   using ConstPtr = std::shared_ptr<const MeshBlock>;
-  MeshBlock(const float block_size, const BlockIndex& index, bool has_labels = false)
-      : Mesh(true, false, has_labels, false), spatial_hash::Block(block_size, index) {}
+  MeshBlock(const float block_size,
+            const BlockIndex& index,
+            bool has_labels = true,
+            bool has_semantic_features = true)
+      : Mesh(true, false, has_labels, has_semantic_features, false),
+        spatial_hash::Block(block_size, index) {}
 };
 
 struct TrackingBlock : public spatial_hash::VoxelBlock<TrackingVoxel> {

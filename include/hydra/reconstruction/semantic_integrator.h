@@ -36,6 +36,8 @@
 #include <config_utilities/factory.h>
 
 #include <cstdint>
+#include <optional>
+#include <set>
 
 #include "hydra/reconstruction/voxel_types.h"
 
@@ -59,7 +61,10 @@ struct SemanticIntegrator {
    */
   virtual bool isValidLabel(uint32_t label) const = 0;
 
-  virtual void updateLikelihoods(uint32_t label, SemanticVoxel& voxel) const = 0;
+  virtual void updateLikelihoods(
+      uint32_t label,
+      const std::optional<Eigen::VectorXf>& semantic_feature_vector,
+      SemanticVoxel& voxel) const = 0;
 };
 
 // Implementation based in part on Kimera-Semantics
@@ -76,7 +81,9 @@ class MLESemanticIntegrator : public SemanticIntegrator {
 
   bool isValidLabel(uint32_t label) const override;
 
-  void updateLikelihoods(uint32_t label, SemanticVoxel& voxel) const override;
+  void updateLikelihoods(uint32_t label,
+                         const std::optional<Eigen::VectorXf>& semantic_feature_vector,
+                         SemanticVoxel& voxel) const override;
 
  protected:
   size_t total_labels_;

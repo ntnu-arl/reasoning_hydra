@@ -203,16 +203,34 @@ Clusters findClusters(const MeshSegmenter::Config& config,
   for (size_t k = 0; k < clusters.size(); ++k) {
     auto& cluster = clusters.at(k);
     const auto& curr_indices = cluster_indices.at(k).indices;
+    std::size_t num_valid_features = 0;
     for (const auto local_idx : curr_indices) {
       cluster.indices.push_back(delta.getGlobalIndex(local_idx));
 
       const auto& p = delta.vertex_updates->at(local_idx);
       const Eigen::Vector3d pos(p.x, p.y, p.z);
       cluster.centroid += pos;
+      if (delta.hasSemanticFeatures()) {
+        if (cluster.semantic_feature && delta.semantic_feature_updates[local_idx]) {
+          cluster.semantic_feature.value() =
+              cluster.semantic_feature.value() +
+              delta.semantic_feature_updates[local_idx].value();
+        } else if (!cluster.semantic_feature) {
+          cluster.semantic_feature = delta.semantic_feature_updates[local_idx];
+        }
+
+        if (delta.semantic_feature_updates[local_idx]) {
+          ++num_valid_features;
+        }
+      }
     }
 
     if (curr_indices.size()) {
       cluster.centroid /= curr_indices.size();
+      if (delta.hasSemanticFeatures() && num_valid_features > 0) {
+        cluster.semantic_feature =
+            cluster.semantic_feature.value() / num_valid_features;
+      }
     }
   }
 
@@ -326,12 +344,14 @@ void MeshSegmenter::updateGraph(uint64_t timestamp_ns,
         addNodeToGraph(graph, cluster, label, timestamp_ns);
       }
 
-      mergeActiveNodes(graph, label);
+      mergeActiveNodes(graph, label, cluster.semantic_feature.has_value());
     }
   }
 }
 
-void MeshSegmenter::mergeActiveNodes(DynamicSceneGraph& graph, uint32_t label) {
+void MeshSegmenter::mergeActiveNodes(DynamicSceneGraph& graph,
+                                     uint32_t label,
+                                     bool semantic_feature) {
   std::set<NodeId> merged_nodes;
 
   auto& curr_active = active_nodes_.at(label);
@@ -362,6 +382,9 @@ void MeshSegmenter::mergeActiveNodes(DynamicSceneGraph& graph, uint32_t label) {
       const auto& other = graph.getNode(other_id);
       auto& other_attrs = other.attributes<ObjectNodeAttributes>();
       mergeList(attrs.mesh_connections, other_attrs.mesh_connections);
+      if (semantic_feature) {
+        mergeObjectSemanticFeature(other_attrs, attrs);
+      }
       graph.removeNode(other_id);
       merged_nodes.insert(other_id);
     }
@@ -394,6 +417,9 @@ void MeshSegmenter::updateNodeInGraph(DynamicSceneGraph& graph,
 
   mergeList(attrs.mesh_connections, cluster.indices);
   updateObjectGeometry(*graph.mesh(), attrs);
+  if (cluster.semantic_feature) {
+    updateObjectSemanticFeature(cluster.semantic_feature.value(), attrs);
+  }
 }
 
 void MeshSegmenter::addNodeToGraph(DynamicSceneGraph& graph,
@@ -410,6 +436,10 @@ void MeshSegmenter::addNodeToGraph(DynamicSceneGraph& graph,
   attrs->last_update_time_ns = timestamp;
   attrs->is_active = true;
   attrs->semantic_label = label;
+  attrs->semantic_feature = cluster.semantic_feature.value_or(Eigen::VectorXf::Zero(0));
+  if (cluster.semantic_feature) {
+    attrs->num_observations = 1;
+  }
   attrs->name = NodeSymbol(next_node_id_).getLabel();
   const auto& label_to_name = GlobalInfo::instance().getLabelToNameMap();
   auto iter = label_to_name.find(label);

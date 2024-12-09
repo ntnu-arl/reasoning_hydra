@@ -44,7 +44,7 @@ namespace hydra {
  * @brief Interface for PGMO to access a mesh layer.
  */
 struct PgmoMeshLayerInterface : public kimera_pgmo::MeshInterface {
-  PgmoMeshLayerInterface(const MeshLayer& mesh);
+  explicit PgmoMeshLayerInterface(const MeshLayer& mesh);
 
   const BlockIndices& blockIndices() const override;
 
@@ -56,7 +56,11 @@ struct PgmoMeshLayerInterface : public kimera_pgmo::MeshInterface {
 
   bool hasSemantics() const override;
 
+  bool hasSemanticFeatures() const override;
+
   std::optional<uint32_t> getActiveSemantics(size_t index) const override;
+
+  std::optional<Eigen::VectorXf> getActiveSemanticFeatures(size_t index) const override;
 
   kimera_pgmo::MeshInterface::Ptr clone() const override;
 
@@ -70,7 +74,7 @@ struct PgmoMeshLayerInterface : public kimera_pgmo::MeshInterface {
  * @brief Interface for PGMO to access a spark-dsg mesh.
  */
 struct PgmoMeshInterface : public kimera_pgmo::MeshInterface {
-  PgmoMeshInterface(const Mesh& mesh);
+  explicit PgmoMeshInterface(const Mesh& mesh);
 
   const BlockIndices& blockIndices() const override;
 
@@ -82,7 +86,11 @@ struct PgmoMeshInterface : public kimera_pgmo::MeshInterface {
 
   bool hasSemantics() const override;
 
+  bool hasSemanticFeatures() const override;
+
   std::optional<uint32_t> getActiveSemantics(size_t index) const override;
+
+  std::optional<Eigen::VectorXf> getActiveSemanticFeatures(size_t index) const override;
 
   kimera_pgmo::MeshInterface::Ptr clone() const override;
 

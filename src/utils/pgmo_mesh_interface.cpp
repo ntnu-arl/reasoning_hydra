@@ -67,11 +67,19 @@ pcl::PointXYZRGBA PgmoMeshLayerInterface::getActiveVertex(size_t index) const {
   point.b = color.b;
   point.a = color.a;
   return point;
-};
+}
 
 std::optional<uint32_t> PgmoMeshLayerInterface::getActiveSemantics(size_t index) const {
   if (index < active_mesh_->labels.size()) {
     return active_mesh_->labels[index];
+  }
+  return std::nullopt;
+}
+
+std::optional<Eigen::VectorXf> PgmoMeshLayerInterface::getActiveSemanticFeatures(
+    size_t index) const {
+  if (index < active_mesh_->semantic_features.size()) {
+    return active_mesh_->semantic_features[index];
   }
   return std::nullopt;
 }
@@ -83,6 +91,12 @@ bool PgmoMeshLayerInterface::hasSemantics() const {
   return mesh_.begin()->has_labels;
 }
 
+bool PgmoMeshLayerInterface::hasSemanticFeatures() const {
+  if (mesh_.numBlocks() == 0) {
+    return false;
+  }
+  return mesh_.begin()->has_semantic_features;
+}
 kimera_pgmo::MeshInterface::Ptr PgmoMeshLayerInterface::clone() const {
   return std::make_shared<PgmoMeshLayerInterface>(*this);
 }
@@ -111,7 +125,7 @@ pcl::PointXYZRGBA PgmoMeshInterface::getActiveVertex(size_t index) const {
   point.b = color.b;
   point.a = color.a;
   return point;
-};
+}
 
 std::optional<uint32_t> PgmoMeshInterface::getActiveSemantics(size_t index) const {
   if (index < mesh_.labels.size()) {
@@ -120,7 +134,19 @@ std::optional<uint32_t> PgmoMeshInterface::getActiveSemantics(size_t index) cons
   return std::nullopt;
 }
 
+std::optional<Eigen::VectorXf> PgmoMeshInterface::getActiveSemanticFeatures(
+    size_t index) const {
+  if (index < mesh_.semantic_features.size()) {
+    return mesh_.semantic_features[index];
+  }
+  return std::nullopt;
+}
+
 bool PgmoMeshInterface::hasSemantics() const { return mesh_.has_labels; }
+
+bool PgmoMeshInterface::hasSemanticFeatures() const {
+  return mesh_.has_semantic_features;
+}
 
 kimera_pgmo::MeshInterface::Ptr PgmoMeshInterface::clone() const {
   return std::make_shared<PgmoMeshInterface>(*this);

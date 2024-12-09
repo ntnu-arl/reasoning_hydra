@@ -400,7 +400,24 @@ void FrontendModule::updateObjects(const ReconstructionOutput& input) {
                             last_mesh_update_->getTotalArchivedVertices(),
                             *dsg_->graph);
     addPlaceObjectEdges(input.timestamp_ns);
+    // Clear graph meshes of feature vectors
+    clearMeshFeatures();
+    // Add feature vector of image the place where the agent currently is
+    if (!places_nn_finder_ || !input.sensor_data->image_feature) {
+      return;
+    }
+    updatePlaceFeatures(input.sensor_data->image_feature.value());
   }  // end dsg critical section
+}
+
+void FrontendModule::clearMeshFeatures() {
+  for (auto& semantic_feature : last_mesh_update_->semantic_feature_updates) {
+    semantic_feature = std::nullopt;
+  }
+  auto mesh = dsg_->graph->mesh();
+  for (size_t i = 0; i < mesh->numVertices(); ++i) {
+    mesh->setSemanticFeature(i, std::nullopt);
+  }
 }
 
 using PgmoCloud = pcl::PointCloud<pcl::PointXYZRGBA>;
@@ -727,6 +744,28 @@ void FrontendModule::addPlaceObjectEdges(uint64_t timestamp_ns) {
           dsg_->graph->insertParentEdge(place_id, object_id);
         });
   }
+}
+
+void FrontendModule::updatePlaceFeatures(const Eigen::VectorXf& feature_vector) {
+  const auto& agent_node_layer =
+      dsg_->graph->dynamicLayersOfType(DsgLayers::AGENTS).begin()->second;
+  if (agent_node_layer->numNodes() == 0) {
+    return;
+  }
+  const auto current_pose =
+      agent_node_layer->getPositionByIndex(agent_node_layer->numNodes() - 1);
+  places_nn_finder_->find(current_pose, 1, false, [&](NodeId place_id, size_t, double) {
+    auto& place = dsg_->graph->getNode(place_id);
+    auto& attrs = place.attributes<PlaceNodeAttributes>();
+    if (attrs.num_observations == 0) {
+      attrs.feature_vector = feature_vector;
+    } else {
+      attrs.feature_vector =
+          (attrs.feature_vector * attrs.num_observations + feature_vector) /
+          (attrs.num_observations + 1);
+    }
+    attrs.num_observations++;
+  });
 }
 
 void FrontendModule::addPlaceAgentEdges(uint64_t timestamp_ns) {

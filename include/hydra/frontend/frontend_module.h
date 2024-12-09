@@ -37,9 +37,14 @@
 #include <kimera_pgmo/hashing.h>
 #include <spark_dsg/scene_graph_logger.h>
 
+#include <list>
+#include <map>
 #include <memory>
 #include <mutex>
+#include <set>
+#include <string>
 #include <thread>
+#include <vector>
 
 #include "hydra/common/common.h"
 #include "hydra/common/input_queue.h"
@@ -147,11 +152,15 @@ class FrontendModule : public Module {
 
   void addPlaceObjectEdges(uint64_t timestamp_ns);
 
+  void updatePlaceFeatures(const Eigen::VectorXf& feature_vector);
+
   void addPlaceAgentEdges(uint64_t timestamp_ns);
 
   void processNextInput(const ReconstructionOutput& msg);
 
   void updatePlaceMeshMapping(const ReconstructionOutput& input);
+
+  void clearMeshFeatures();
 
  protected:
   using InputPtrCallback = std::function<void(const ReconstructionOutput::Ptr&)>;

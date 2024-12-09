@@ -2,8 +2,11 @@
 
 #include <Eigen/Geometry>
 #include <limits>
+#include <memory>
 #include <opencv2/core/mat.hpp>
+#include <unordered_map>
 #include <utility>
+#include <vector>
 
 #include "hydra/common/common_types.h"
 #include "hydra/input/sensor.h"
@@ -39,6 +42,15 @@ struct InputData {
 
   // Label image for semantic input data.
   cv::Mat label_image;
+
+  // Semantic features mask.
+  std::optional<cv::Mat> features_mask;
+
+  // Semantic features.
+  std::optional<std::unordered_map<uint16_t, Eigen::VectorXf>> semantic_features;
+
+  // Image feature vector.
+  std::optional<Eigen::VectorXf> image_feature;
 
   // 3D points of the range image in sensor or world frame.
   cv::Mat vertex_map;

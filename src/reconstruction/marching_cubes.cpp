@@ -43,6 +43,12 @@
 
 namespace hydra {
 
+std::string eigenVectorToString(const Eigen::VectorXf& vec) {
+  std::ostringstream oss;
+  oss << vec;
+  return oss.str();
+}
+
 std::ostream& operator<<(std::ostream& out, const SdfPoint& point) {
   out << "<";
   out << "d=" << point.distance;
@@ -53,6 +59,9 @@ std::ostream& operator<<(std::ostream& out, const SdfPoint& point) {
       << static_cast<int>(point.color.g) << ", " << static_cast<int>(point.color.b)
       << "]";
   out << ", label=" << (point.label ? std::to_string(point.label.value()) : "n/a");
+  out << ", semantic_feature="
+      << (point.semantic_feature ? eigenVectorToString(point.semantic_feature.value())
+                                 : "n/a");
   out << ", vertex=" << (point.vertex_voxel ? "y" : "n");
   out << ">";
   return out;
@@ -67,6 +76,25 @@ std::optional<uint32_t> interpLabel(const SdfPoint& v0, const SdfPoint& v1, floa
   } else {
     return v1.label;
   }
+}
+
+std::optional<Eigen::VectorXf> interpSemanticFeature(const SdfPoint& v0,
+                                                     const SdfPoint& v1,
+                                                     float t) {
+  if (!v0.semantic_feature && !v1.semantic_feature) {
+    return std::nullopt;
+  }
+
+  if (v0.semantic_feature && v1.semantic_feature) {
+    return v0.semantic_feature.value() +
+           t * (v1.semantic_feature.value() - v0.semantic_feature.value());
+  }
+
+  if (v0.semantic_feature) {
+    return v0.semantic_feature;
+  }
+
+  return v1.semantic_feature;
 }
 
 Color interpColor(const SdfPoint& v0, const SdfPoint& v1, float t) {
@@ -110,6 +138,7 @@ void MarchingCubes::interpolateEdges(const SdfPoints& points,
       // force interpolation to occur exactly in the middle
       edge_point.color = interpColor(point0, point1, 0.5);
       edge_point.label = interpLabel(point0, point1, 0.5);
+      edge_point.semantic_feature = interpSemanticFeature(point0, point1, 0.5);
 
       VLOG(15) << "- t=n/a"
                << ", v0=" << point0.pos.transpose() << ", v1=" << point1.pos.transpose()
@@ -125,6 +154,7 @@ void MarchingCubes::interpolateEdges(const SdfPoints& points,
     edge_point.pos = point0.pos + t * (point1.pos - point0.pos);
     edge_point.color = interpColor(point0, point1, t);
     edge_point.label = interpLabel(point0, point1, t);
+    edge_point.semantic_feature = interpSemanticFeature(point0, point1, t);
 
     VLOG(15) << "- t=" << t << ", v0=" << point0.pos.transpose()
              << ", v1=" << point1.pos.transpose()
@@ -227,6 +257,12 @@ void MarchingCubes::meshCube(const BlockIndex& block,
       mesh.labels.push_back(v1.label.value_or(std::numeric_limits<uint32_t>::max()));
       mesh.labels.push_back(v2.label.value_or(std::numeric_limits<uint32_t>::max()));
       mesh.labels.push_back(v3.label.value_or(std::numeric_limits<uint32_t>::max()));
+    }
+
+    if (mesh.has_semantic_features) {
+      mesh.semantic_features.push_back(v1.semantic_feature);
+      mesh.semantic_features.push_back(v2.semantic_feature);
+      mesh.semantic_features.push_back(v3.semantic_feature);
     }
 
     if (compute_normals) {
