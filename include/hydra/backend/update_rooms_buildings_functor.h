@@ -33,20 +33,36 @@
  * purposes notwithstanding any copyright notation herein.
  * -------------------------------------------------------------------------- */
 #pragma once
+
+#include <config_utilities/config.h>
+
+#include <memory>
+
 #include "hydra/backend/update_functions.h"
 #include "hydra/rooms/room_finder.h"
+#include "hydra/utils/kmeans_clustering.h"
 
 namespace hydra {
 
+struct RoomsFunctorConfig {
+  RoomFinderConfig room_finder_config;
+  KMeansConfig kmeans;
+};
+
+void declare_config(RoomsFunctorConfig& config);
+
 struct UpdateRoomsFunctor : public UpdateFunctor {
-  UpdateRoomsFunctor(const RoomFinderConfig& config);
+  explicit UpdateRoomsFunctor(const RoomsFunctorConfig& config);
   MergeList call(const DynamicSceneGraph& unmerged,
                  SharedDsgInfo& dsg,
                  const UpdateInfo::ConstPtr& info) const override;
 
   void rewriteRooms(const SceneGraphLayer* new_rooms, DynamicSceneGraph& graph) const;
-
+  void computeRoomFeatures(DynamicSceneGraph::Ptr& graph,
+                           const SceneGraphLayer* new_rooms,
+                           const std::optional<Eigen::VectorXf>& feature_vector) const;
   std::unique_ptr<RoomFinder> room_finder;
+  KMeans<float>::Ptr kmeans;
 };
 
 struct UpdateBuildingsFunctor : public UpdateFunctor {

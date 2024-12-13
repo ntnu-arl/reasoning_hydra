@@ -50,23 +50,28 @@ building_semantic_label: 22
 building_color: [169, 8, 194]
 visualize_place_factors: false
 enable_rooms: true
-room_finder:
-  min_dilation_m: 0.5
-  max_dilation_m: 1.2
-  min_window_size: 0.2
-  clip_dilation_window_to_max: false
-  min_component_size: 10
-  min_room_size: 10
-  dilation_threshold_mode: PLATEAU
-  min_lifetime_length_m: 0.1
-  plateau_ratio: 0.15
-  clustering_mode: NEIGHBORS
-  max_modularity_iters: 5
-  modularity_gamma: 1.0
-  room_prefix: R
-  dilation_diff_threshold_m: -1.0
-  log_filtrations: false
-  log_place_graphs: false
+room_functor:
+  room_finder_config:
+    min_dilation_m: 0.5
+    max_dilation_m: 1.2
+    min_window_size: 0.2
+    clip_dilation_window_to_max: false
+    min_component_size: 10
+    min_room_size: 10
+    dilation_threshold_mode: PLATEAU
+    min_lifetime_length_m: 0.1
+    plateau_ratio: 0.15
+    clustering_mode: NEIGHBORS
+    max_modularity_iters: 5
+    modularity_gamma: 1.0
+    room_prefix: R
+    dilation_diff_threshold_m: -1.0
+    log_filtrations: false
+    log_place_graphs: false
+  kmeans:
+    num_clusters: 10
+    max_iterations: 100
+    tolerance: 1e-4
 enable_reasoning: true
 reasoning_functor:
   reasoning:
@@ -82,6 +87,9 @@ reasoning_functor:
   edges_max_radius: 2.5
   room_change_threshold: 1.0
 use_2d_places: true
+room_features_fusion:
+  min_distance: 0.48
+  max_clusters: 25
 places2d_config:
     allow_places_merge: true
     merge_max_delta_z: 0.5

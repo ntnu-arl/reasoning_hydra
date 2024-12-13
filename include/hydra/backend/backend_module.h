@@ -52,14 +52,15 @@
 #include "hydra/backend/pgmo_configs.h"
 #include "hydra/backend/update_frontiers_functor.h"
 #include "hydra/backend/update_reasoning_functor.h"
+#include "hydra/backend/update_rooms_buildings_functor.h"
 #include "hydra/backend/update_surface_places_functor.h"
 #include "hydra/common/common.h"
 #include "hydra/common/module.h"
 #include "hydra/common/output_sink.h"
 #include "hydra/common/shared_dsg_info.h"
 #include "hydra/common/shared_module_state.h"
-#include "hydra/rooms/room_finder_config.h"
 #include "hydra/utils/log_utilities.h"
+#include "hydra/utils/nearest_neighbor_utilities.h"
 
 namespace spark_dsg {
 class ZmqReceiver;
@@ -87,7 +88,7 @@ class BackendModule : public kimera_pgmo::KimeraPgmoInterface, public Module {
   struct Config {
     bool visualize_place_factors = true;
     bool enable_rooms = true;
-    RoomFinderConfig room_finder;
+    RoomsFunctorConfig room_functor;
     bool enable_reasoning = true;
     ThreeDSSGConfig reasoning_functor;
     bool enable_buildings = true;
@@ -177,17 +178,20 @@ class BackendModule : public kimera_pgmo::KimeraPgmoInterface, public Module {
 
   virtual void updateAgentNodeMeasurements(const pose_graph_tools::PoseGraph& meas);
 
-  virtual void optimize(size_t timestamp_ns);
+  virtual void optimize(size_t timestamp_ns,
+                        const std::optional<Eigen::VectorXf>& feature_vector);
 
   virtual void updateDsgMesh(size_t timestamp_ns, bool force_mesh_update = false);
 
   virtual void resetBackendDsg(size_t timestamp_ns);
 
-  virtual void callUpdateFunctions(size_t timestamp_ns,
-                                   const gtsam::Values& places_values = gtsam::Values(),
-                                   const gtsam::Values& pgmo_values = gtsam::Values(),
-                                   bool new_loop_closure = false,
-                                   const UpdateInfo::LayerMerges& given_merges = {});
+  virtual void callUpdateFunctions(
+      size_t timestamp_ns,
+      const std::optional<Eigen::VectorXf>& feature_vector = std::nullopt,
+      const gtsam::Values& places_values = gtsam::Values(),
+      const gtsam::Values& pgmo_values = gtsam::Values(),
+      bool new_loop_closure = false,
+      const UpdateInfo::LayerMerges& given_merges = {});
 
   void runZmqUpdates();
 
@@ -240,6 +244,7 @@ class BackendModule : public kimera_pgmo::KimeraPgmoInterface, public Module {
   std::unique_ptr<std::thread> zmq_thread_;
   std::unique_ptr<spark_dsg::ZmqReceiver> zmq_receiver_;
   std::unique_ptr<spark_dsg::ZmqSender> zmq_sender_;
+  std::unique_ptr<NearestNodeFinder> places_with_parent_nn_finder_;
 
   ObjectsAttributes::Ptr objects_attributes_ = nullptr;
 

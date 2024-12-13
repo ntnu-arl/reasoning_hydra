@@ -35,6 +35,12 @@
 #pragma once
 #include <gtsam/nonlinear/Values.h>
 
+#include <list>
+#include <map>
+#include <memory>
+#include <optional>
+#include <vector>
+
 #include "hydra/common/common.h"
 #include "hydra/common/shared_dsg_info.h"
 
@@ -68,6 +74,7 @@ struct UpdateInfo {
   //! External merges (e.g., from GNC)
   LayerMerges given_merges;
   const gtsam::Values* complete_agent_values = nullptr;
+  std::optional<Eigen::VectorXf> feature_vector;
 };
 
 using LayerUpdateFunc = std::function<MergeList(

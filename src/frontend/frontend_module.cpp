@@ -88,8 +88,6 @@ void declare_config(FrontendModule::Config& config) {
   field(config.use_frontiers, "use_frontiers");
   config.frontier_places.setOptional();
   field(config.frontier_places, "frontier_places");
-  config.place_features_fusion.setOptional();
-  field(config.place_features_fusion, "place_features_fusion");
 }
 
 FrontendModule::FrontendModule(const Config& config,
@@ -105,7 +103,6 @@ FrontendModule::FrontendModule(const Config& config,
       surface_places_(config.surface_places.create()),
       freespace_places_(config.freespace_places.create()),
       frontier_places_(config.frontier_places.create()),
-      place_features_fusion_(config.place_features_fusion.create()),
       sinks_(Sink::instantiate(config.sinks)) {
   if (!config.use_frontiers) {
     frontier_places_.reset();
@@ -317,6 +314,8 @@ void FrontendModule::spinOnce(const ReconstructionOutput::Ptr& msg) {
   }
 
   backend_input_->mesh_update = last_mesh_update_;
+  backend_input_->feature_vector = msg->sensor_data->image_feature;
+
   state_->backend_queue.push(backend_input_);
   if (state_->lcd_queue) {
     state_->lcd_queue->push(lcd_input_);
@@ -405,11 +404,6 @@ void FrontendModule::updateObjects(const ReconstructionOutput& input) {
     addPlaceObjectEdges(input.timestamp_ns);
     // Clear graph meshes of feature vectors
     clearMeshFeatures();
-    // Add feature vector of image the place where the agent currently is
-    if (!places_nn_finder_ || !input.sensor_data->image_feature) {
-      return;
-    }
-    updatePlaceFeatures(input.sensor_data->image_feature.value());
   }  // end dsg critical section
 }
 
@@ -747,24 +741,6 @@ void FrontendModule::addPlaceObjectEdges(uint64_t timestamp_ns) {
           dsg_->graph->insertParentEdge(place_id, object_id);
         });
   }
-}
-
-void FrontendModule::updatePlaceFeatures(const Eigen::VectorXf& feature_vector) {
-  if (!place_features_fusion_) {
-    return;
-  }
-  const auto& agent_node_layer =
-      dsg_->graph->dynamicLayersOfType(DsgLayers::AGENTS).begin()->second;
-  if (agent_node_layer->numNodes() == 0) {
-    return;
-  }
-  const auto current_pose =
-      agent_node_layer->getPositionByIndex(agent_node_layer->numNodes() - 1);
-  places_nn_finder_->find(current_pose, 1, false, [&](NodeId place_id, size_t, double) {
-    auto& place = dsg_->graph->getNode(place_id);
-    auto& attrs = place.attributes<PlaceNodeAttributes>();
-    place_features_fusion_->updateFeatures(attrs, feature_vector);
-  });
 }
 
 void FrontendModule::addPlaceAgentEdges(uint64_t timestamp_ns) {

@@ -41,6 +41,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <vector>
 
 #include "hydra/common/common.h"
@@ -70,6 +71,7 @@ struct BackendInput {
   pose_graph_tools::PoseGraph::ConstPtr deformation_graph;
   PoseGraphPacket agent_updates;
   kimera_pgmo::MeshDelta::Ptr mesh_update;
+  std::optional<Eigen::VectorXf> feature_vector;
 };
 
 struct BackendReasoningInput {

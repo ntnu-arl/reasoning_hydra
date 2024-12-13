@@ -35,23 +35,23 @@
 #pragma once
 #include <config_utilities/virtual_config.h>
 
+#include "hydra/backend/update_rooms_buildings_functor.h"
 #include "hydra/common/global_info.h"
 #include "hydra/frontend/frontend_module.h"
 #include "hydra/reconstruction/volumetric_map.h"
-#include "hydra/rooms/room_finder_config.h"
 
 namespace hydra {
 
 class BatchPipeline {
  public:
-  BatchPipeline(const PipelineConfig& config, int robot_id = 0);
+  explicit BatchPipeline(const PipelineConfig& config, int robot_id = 0);
 
   virtual ~BatchPipeline();
 
   DynamicSceneGraph::Ptr construct(
       const config::VirtualConfig<FrontendModule>& frontend_config,
       VolumetricMap& map,
-      const RoomFinderConfig* room_config = nullptr) const;
+      const RoomsFunctorConfig* room_config = nullptr) const;
 };
 
 }  // namespace hydra

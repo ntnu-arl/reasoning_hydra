@@ -43,8 +43,9 @@ namespace hydra {
 using timing::ScopedTimer;
 using SemanticLabel = SemanticNodeAttributes::Label;
 
-UpdateRoomsFunctor::UpdateRoomsFunctor(const RoomFinderConfig& config)
-    : room_finder(new RoomFinder(config)) {}
+UpdateRoomsFunctor::UpdateRoomsFunctor(const RoomsFunctorConfig& config)
+    : room_finder(new RoomFinder(config.room_finder_config)),
+      kmeans(new KMeans<float>(config.kmeans)) {}
 
 void UpdateRoomsFunctor::rewriteRooms(const SceneGraphLayer* new_rooms,
                                       DynamicSceneGraph& graph) const {
@@ -89,7 +90,64 @@ MergeList UpdateRoomsFunctor::call(const DynamicSceneGraph&,
   auto rooms = room_finder->findRooms(*places_clone);
   rewriteRooms(rooms.get(), *dsg.graph);
   room_finder->addRoomPlaceEdges(*dsg.graph);
+
+  computeRoomFeatures(dsg.graph, rooms.get(), info->feature_vector);
+
   return {};
+}
+
+void UpdateRoomsFunctor::computeRoomFeatures(
+    DynamicSceneGraph::Ptr& graph,
+    const SceneGraphLayer* new_rooms,
+    const std::optional<Eigen::VectorXf>& feature_vector) const {
+  if (!kmeans || !feature_vector) {
+    return;
+  }
+
+  const auto& agent_layer =
+      graph->dynamicLayersOfType(DsgLayers::AGENTS).begin()->second;
+  if (agent_layer->numNodes() == 0) {
+    return;
+  }
+
+  auto& current_agent_attrs = agent_layer->getNodeByIndex(agent_layer->numNodes() - 1)
+                                  .attributes<AgentNodeAttributes>();
+  current_agent_attrs.image_feature = *feature_vector;
+
+  std::unordered_map<NodeId, std::vector<Eigen::VectorXf>> room_features;
+  room_features.reserve(new_rooms->numNodes());
+
+  for (const auto& agent : agent_layer->nodes()) {
+    const auto& agent_attrs = agent->attributes<AgentNodeAttributes>();
+    if (agent_attrs.image_feature.size() == 0) {
+      continue;
+    }
+    const auto& place_id = agent->getParent();
+    if (!place_id) {
+      continue;
+    }
+    const auto& place = graph->getNode(*place_id);
+    const auto& room_id = place.getParent();
+    if (!room_id) {
+      continue;
+    }
+    room_features[*room_id].push_back(agent_attrs.image_feature);
+  }
+
+  for (auto map_iter = room_features.begin(); map_iter != room_features.end();
+       ++map_iter) {
+    const auto& room_id = map_iter->first;
+    const auto& features = map_iter->second;
+    if (features.empty()) {
+      continue;
+    }
+    auto& room_attrs = graph->getNode(room_id).attributes<RoomNodeAttributes>();
+    if (features.size() <= kmeans->config.num_clusters) {
+      room_attrs.feature_vectors = features;
+    } else {
+      kmeans->cluster(features, room_attrs.feature_vectors);
+    }
+  }
 }
 
 UpdateBuildingsFunctor::UpdateBuildingsFunctor(const Color& color, SemanticLabel label)
@@ -133,6 +191,13 @@ MergeList UpdateBuildingsFunctor::call(const DynamicSceneGraph&,
   }
 
   return {};
+}
+
+void declare_config(RoomsFunctorConfig& config) {
+  using namespace config;
+  name("RoomsFunctorConfig");
+  field(config.room_finder_config, "room_finder_config");
+  field(config.kmeans, "kmeans");
 }
 
 }  // namespace hydra

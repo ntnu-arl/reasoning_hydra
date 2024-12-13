@@ -35,6 +35,7 @@
 #include "hydra/backend/backend_module.h"
 
 #include <config_utilities/config.h>
+#include <config_utilities/factory.h>
 #include <config_utilities/printing.h>
 #include <config_utilities/types/eigen_matrix.h>
 #include <config_utilities/types/enum.h>
@@ -71,7 +72,7 @@ void declare_config(BackendModule::Config& config) {
   name("BackendConfig");
   field(config.visualize_place_factors, "visualize_place_factors");
   field(config.enable_rooms, "enable_rooms");
-  field(config.room_finder, "room_finder");
+  field(config.room_functor, "room_functor");
   field(config.enable_reasoning, "enable_reasoning");
   field(config.reasoning_functor, "reasoning_functor");
   field(config.enable_buildings, "enable_buildings");
@@ -304,10 +305,10 @@ void BackendModule::spinOnce(const BackendInput& input, bool force_update) {
 
   timer.reset("backend/spin");
   if (config.optimize_on_lc && have_loopclosures_) {
-    optimize(input.timestamp_ns);
+    optimize(input.timestamp_ns, input.feature_vector);
   } else {
     updateDsgMesh(input.timestamp_ns);
-    callUpdateFunctions(input.timestamp_ns);
+    callUpdateFunctions(input.timestamp_ns, input.feature_vector);
   }
 
   if (logs_) {
@@ -371,7 +372,7 @@ void BackendModule::setupDefaultFunctors() {
       config.places_merge_pos_threshold_m, config.places_merge_distance_tolerance_m);
 
   if (config.enable_rooms) {
-    auto room_functor = std::make_shared<UpdateRoomsFunctor>(config.room_finder);
+    auto room_functor = std::make_shared<UpdateRoomsFunctor>(config.room_functor);
     if (logs_) {
       const auto log_path = logs_->getLogDir("backend/room_filtrations");
       room_functor->room_finder->enableLogging(log_path);
@@ -704,7 +705,8 @@ void BackendModule::updateAgentNodeMeasurements(
   deformation_graph_->addNodeMeasurements(agent_measurements);
 }
 
-void BackendModule::optimize(size_t timestamp_ns) {
+void BackendModule::optimize(size_t timestamp_ns,
+                             const std::optional<Eigen::VectorXf>& feature_vector) {
   if (config.add_places_to_deformation_graph) {
     addPlacesToDeformationGraph(timestamp_ns);
   }
@@ -717,6 +719,7 @@ void BackendModule::optimize(size_t timestamp_ns) {
   updateDsgMesh(timestamp_ns, true);
 
   callUpdateFunctions(timestamp_ns,
+                      feature_vector,
                       deformation_graph_->getGtsamTempValues(),
                       deformation_graph_->getGtsamValues(),
                       have_new_loopclosures_);
@@ -739,11 +742,13 @@ void BackendModule::resetBackendDsg(size_t timestamp_ns) {
   reset_backend_dsg_ = false;
 }
 
-void BackendModule::callUpdateFunctions(size_t timestamp_ns,
-                                        const gtsam::Values& places_values,
-                                        const gtsam::Values& pgmo_values,
-                                        bool new_loop_closure,
-                                        const UpdateInfo::LayerMerges& given_merges) {
+void BackendModule::callUpdateFunctions(
+    size_t timestamp_ns,
+    const std::optional<Eigen::VectorXf>& feature_vector,
+    const gtsam::Values& places_values,
+    const gtsam::Values& pgmo_values,
+    bool new_loop_closure,
+    const UpdateInfo::LayerMerges& given_merges) {
   ScopedTimer spin_timer("backend/update_layers", timestamp_ns);
 
   // TODO(nathan) chance that this causes weirdness when we have multiple nodes but no
@@ -775,7 +780,8 @@ void BackendModule::callUpdateFunctions(size_t timestamp_ns,
                                            timestamp_ns,
                                            enable_merging,
                                            given_merges,
-                                           &complete_agent_values});
+                                           &complete_agent_values,
+                                           feature_vector});
 
   // merge topological changes to private dsg, respecting merges
   // attributes may be overwritten, but ideally we don't bother
