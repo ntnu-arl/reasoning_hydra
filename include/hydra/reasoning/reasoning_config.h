@@ -3,6 +3,8 @@
 
 namespace hydra {
 
+enum class ReasoningCall { ROOM_CHANGE, FREQUENCY };
+
 struct ReasoningConfig {
   std::string inference_script;
   std::string input_folder;
@@ -19,6 +21,8 @@ struct ThreeDSSGConfig {
   double edge_prob_threshold;
   float edges_max_radius;
   double room_change_threshold;
+  ReasoningCall reasoning_call;
+  float reasoning_frequency;
 };
 
 void declare_config(ReasoningConfig& config);

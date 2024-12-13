@@ -47,28 +47,70 @@ void UpdateReasoningFunctor::spinOnce(const BackendReasoningInput& input,
 
 void UpdateReasoningFunctor::call(const UpdateInfo::ConstPtr& info,
                                   ObjectsAttributes::Ptr& objects_attributes) {
-  if (dsg_->graph->getLayer(DsgLayers::ROOMS).numNodes() == 0 ||
-      state_->latest_places.empty()) {
-    return;
-  }
-
-  // Initialize previous room node id to the first room that we have seen
-  if (!initialized_) {
-    const auto& latest_place_id = *state_->latest_places.begin();
-    assert(dsg_->graph->hasNode(latest_place_id));
-    if (!dsg_->graph->getNode(latest_place_id).hasParent()) {
-      return;
-    }
-    prev_room_node_id_ = *(dsg_->graph->getNode(latest_place_id).parents().begin());
-    initialized_ = true;
-    return;
-  }
-  // Detect if the room has changed
   NodeId room_to_reason_id;
-  {
-    ScopedTimer timer_room_change("backend/update_reasoning/detect_room_change",
-                                  info->timestamp_ns);
-    if (!detectRoomChange(room_to_reason_id)) {
+  switch (config_.reasoning_call) {
+    case ReasoningCall::ROOM_CHANGE: {
+      if (dsg_->graph->getLayer(DsgLayers::ROOMS).numNodes() == 0 ||
+          state_->latest_places.empty()) {
+        return;
+      }
+
+      // Initialize previous room node id to the first room that we have seen
+      if (!initialized_) {
+        const auto& latest_place_id = *state_->latest_places.begin();
+        assert(dsg_->graph->hasNode(latest_place_id));
+        if (!dsg_->graph->getNode(latest_place_id).hasParent()) {
+          return;
+        }
+        prev_room_node_id_ = *(dsg_->graph->getNode(latest_place_id).parents().begin());
+        initialized_ = true;
+        return;
+      }
+      // Detect if the room has changed
+      {
+        ScopedTimer timer_room_change("backend/update_reasoning/detect_room_change",
+                                      info->timestamp_ns);
+        if (!detectRoomChange(room_to_reason_id)) {
+          return;
+        }
+      }
+      break;
+    }
+    case ReasoningCall::FREQUENCY: {
+      if (!initialized_) {
+        prev_reasoning_timestamp_ = info->timestamp_ns;
+        initialized_ = true;
+        return;
+      }
+      if (info->timestamp_ns - prev_reasoning_timestamp_ <
+          1.0 / config_.reasoning_frequency * 1e9) {
+        return;
+      }
+      prev_reasoning_timestamp_ = info->timestamp_ns;
+      const auto& agents_layer = dsg_->graph->dynamicLayersOfType(DsgLayers::AGENTS);
+      if (agents_layer.empty()) {
+        return;
+      }
+      const auto& agent_layer = agents_layer.begin()->second;
+      if (agent_layer->numNodes() == 0) {
+        return;
+      }
+      const auto& current_agent =
+          agent_layer->getNodeByIndex(agent_layer->numNodes() - 1);
+      const auto& current_place_id = current_agent.getParent();
+      if (!current_place_id) {
+        return;
+      }
+      const auto& current_place = dsg_->graph->getNode(*current_place_id);
+      if (!current_place.hasParent()) {
+        return;
+      }
+      room_to_reason_id = *(current_place.getParent());
+      break;
+    }
+    default: {
+      // Glog error
+      LOG(ERROR) << "Invalid reasoning call type";
       return;
     }
   }

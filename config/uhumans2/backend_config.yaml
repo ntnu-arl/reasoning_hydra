@@ -86,6 +86,8 @@ reasoning_functor:
   edge_prob_threshold: 0.5
   edges_max_radius: 2.5
   room_change_threshold: 1.0
+  reasoning_frequency: 0.2
+  reasoning_call: FREQUENCY
 use_2d_places: true
 room_features_fusion:
   min_distance: 0.48

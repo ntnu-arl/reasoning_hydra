@@ -57,6 +57,7 @@ class UpdateReasoningFunctor {
   ThreeDSSGConfig config_;
   SharedModuleState::Ptr state_;
   NodeId prev_room_node_id_;
+  uint64_t prev_reasoning_timestamp_{0};
   bool initialized_{false};
   SharedDsgInfo::Ptr dsg_;
   Reasoning::Ptr reasoning_;

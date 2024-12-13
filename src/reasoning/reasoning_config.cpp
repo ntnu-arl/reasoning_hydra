@@ -1,6 +1,7 @@
 #include "hydra/reasoning/reasoning_config.h"
 
 #include <config_utilities/config.h>
+#include <config_utilities/types/enum.h>
 
 namespace hydra {
 
@@ -24,6 +25,11 @@ void declare_config(ThreeDSSGConfig& conf) {
   field(conf.edge_prob_threshold, "edge_prob_threshold");
   field(conf.edges_max_radius, "edges_max_radius", "m");
   field(conf.room_change_threshold, "room_change_threshold", "m");
+  field(conf.reasoning_frequency, "reasoning_frequency", "Hz");
+  enum_field(conf.reasoning_call,
+             "reasoning_call",
+             {{ReasoningCall::ROOM_CHANGE, "ROOM_CHANGE"},
+              {ReasoningCall::FREQUENCY, "FREQUENCY"}});
 }
 
 }  // namespace hydra
