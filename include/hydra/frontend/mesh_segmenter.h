@@ -37,11 +37,13 @@
 #include <memory>
 #include <set>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
 #include "hydra/common/dsg_types.h"
 #include "hydra/common/output_sink.h"
+#include "hydra/utils/pair_hash.h"
 
 namespace kimera_pgmo {
 class MeshDelta;
@@ -53,6 +55,7 @@ struct Cluster {
   Eigen::Vector3d centroid;
   std::vector<size_t> indices;
   std::optional<Eigen::VectorXf> semantic_feature;
+  std::optional<uint16_t> panoptic_id;
 };
 
 using LabelIndices = std::map<uint32_t, std::vector<size_t>>;
@@ -89,7 +92,8 @@ class MeshSegmenter {
   void updateGraph(uint64_t timestamp,
                    const LabelClusters& clusters,
                    size_t num_archived_vertices,
-                   DynamicSceneGraph& graph);
+                   DynamicSceneGraph& graph,
+                   const std::optional<PairHashMap>& relations = std::nullopt);
 
   std::unordered_set<NodeId> getActiveNodes() const;
 
@@ -108,11 +112,14 @@ class MeshSegmenter {
 
   void mergeActiveNodes(DynamicSceneGraph& graph,
                         uint32_t label,
-                        bool semantic_feature);
+                        bool semantic_feature,
+                        std::unordered_map<uint16_t, NodeId>& panoptic_id_to_node,
+                        std::unordered_map<NodeId, uint16_t>& node_to_panoptic_id);
 
  private:
   NodeSymbol next_node_id_;
   std::map<uint32_t, std::set<NodeId>> active_nodes_;
+  std::unordered_map<NodeId, std::set<NodeId>> active_edges_;
   Sink::List sinks_;
 };
 

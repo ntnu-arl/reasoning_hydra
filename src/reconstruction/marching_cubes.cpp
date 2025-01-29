@@ -62,6 +62,8 @@ std::ostream& operator<<(std::ostream& out, const SdfPoint& point) {
   out << ", semantic_feature="
       << (point.semantic_feature ? eigenVectorToString(point.semantic_feature.value())
                                  : "n/a");
+  out << ", panoptic_id="
+      << (point.panoptic_id ? std::to_string(point.panoptic_id.value()) : "n/a");
   out << ", vertex=" << (point.vertex_voxel ? "y" : "n");
   out << ">";
   return out;
@@ -75,6 +77,19 @@ std::optional<uint32_t> interpLabel(const SdfPoint& v0, const SdfPoint& v1, floa
     return (v0.weight > v1.weight) ? v0.label : v1.label;
   } else {
     return v1.label;
+  }
+}
+
+std::optional<uint16_t> interpPanopticID(const SdfPoint& v0,
+                                         const SdfPoint& v1,
+                                         float t) {
+  const auto val = std::abs(t);
+  if (std::abs(t) < 0.5f) {
+    return v0.panoptic_id;
+  } else if (val == 0.5f) {
+    return (v0.weight > v1.weight) ? v0.panoptic_id : v1.panoptic_id;
+  } else {
+    return v1.panoptic_id;
   }
 }
 
@@ -139,6 +154,7 @@ void MarchingCubes::interpolateEdges(const SdfPoints& points,
       edge_point.color = interpColor(point0, point1, 0.5);
       edge_point.label = interpLabel(point0, point1, 0.5);
       edge_point.semantic_feature = interpSemanticFeature(point0, point1, 0.5);
+      edge_point.panoptic_id = interpPanopticID(point0, point1, 0.5);
 
       VLOG(15) << "- t=n/a"
                << ", v0=" << point0.pos.transpose() << ", v1=" << point1.pos.transpose()
@@ -155,6 +171,7 @@ void MarchingCubes::interpolateEdges(const SdfPoints& points,
     edge_point.color = interpColor(point0, point1, t);
     edge_point.label = interpLabel(point0, point1, t);
     edge_point.semantic_feature = interpSemanticFeature(point0, point1, t);
+    edge_point.panoptic_id = interpPanopticID(point0, point1, t);
 
     VLOG(15) << "- t=" << t << ", v0=" << point0.pos.transpose()
              << ", v1=" << point1.pos.transpose()
@@ -263,6 +280,12 @@ void MarchingCubes::meshCube(const BlockIndex& block,
       mesh.semantic_features.push_back(v1.semantic_feature);
       mesh.semantic_features.push_back(v2.semantic_feature);
       mesh.semantic_features.push_back(v3.semantic_feature);
+    }
+
+    if (mesh.has_panoptic_ids) {
+      mesh.panoptic_ids.push_back(v1.panoptic_id.value_or(0));
+      mesh.panoptic_ids.push_back(v2.panoptic_id.value_or(0));
+      mesh.panoptic_ids.push_back(v3.panoptic_id.value_or(0));
     }
 
     if (compute_normals) {

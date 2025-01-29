@@ -38,6 +38,7 @@
 #include <list>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace hydra {
 
@@ -49,7 +50,7 @@ struct OutputSink {
   using List = std::list<Ptr>;
 
   virtual ~OutputSink() = default;
-  virtual void call(Args... args) const = 0;
+  virtual void call(Args... args) = 0;
   virtual std::string printInfo() const { return ""; }
 
   static Ptr fromCallback(const std::function<void(Args...)>& callback);
@@ -81,10 +82,10 @@ struct OutputSink {
 
 template <typename... Args>
 struct FunctionSink : OutputSink<Args...> {
-  FunctionSink(const std::function<void(Args...)>& f) : func(f) {}
+  explicit FunctionSink(const std::function<void(Args...)>& f) : func(f) {}
   virtual ~FunctionSink() = default;
 
-  void call(Args... args) const override { func(args...); }
+  void call(Args... args) override { func(args...); }
 
   std::function<void(Args...)> func;
 };
@@ -100,9 +101,9 @@ struct MethodSink : OutputSink<Args...> {
   MethodSink(void (T::*callback)(Args...) const, const T* instance)
       : callback(callback), instance(instance) {}
 
-  void call(Args... args) const override { (instance->*callback)(args...); }
+  void call(Args... args) override { (instance->*callback)(args...); }
 
-  void (T::*callback)(Args...) const;
+  void (T::*callback)(Args...);
   const T* instance;
 };
 
@@ -118,7 +119,7 @@ struct NonConstMethodSink : OutputSink<Args...> {
   NonConstMethodSink(void (T::*callback)(Args...), T* instance)
       : callback(callback), instance(instance) {}
 
-  void call(Args... args) const override { (instance->*callback)(args...); }
+  void call(Args... args) override { (instance->*callback)(args...); }
 
   void (T::*callback)(Args...);
   T* instance;

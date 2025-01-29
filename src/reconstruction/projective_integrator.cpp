@@ -83,15 +83,12 @@ BlockIndices ProjectiveIntegrator::updateMap(const InputData& data,
   updateBlocks(block_indices, data, map);
 
   // De-allocate blocks that were not updated.
-  BlockIndices updated_blocks;
   for (const auto& idx : new_blocks) {
     if (!tsdf.getBlock(idx).updated) {
       map.removeBlock(idx);
-    } else {
-      updated_blocks.push_back(idx);
     }
   }
-  return updated_blocks;
+  return block_indices;
 }
 
 void ProjectiveIntegrator::updateBlocks(const BlockIndices& block_indices,
@@ -232,8 +229,10 @@ void ProjectiveIntegrator::updateVoxel(const InputData& data,
   }
 
   if (semantic_integrator_->isValidLabel(measurement.label)) {
-    semantic_integrator_->updateLikelihoods(
-        measurement.label, measurement.semantic_feature_vector, *voxels.semantic);
+    semantic_integrator_->updateLikelihoods(measurement.label,
+                                            measurement.semantic_feature_vector,
+                                            measurement.panoptic_id,
+                                            *voxels.semantic);
   }
 }
 
@@ -301,6 +300,8 @@ bool ProjectiveIntegrator::computeLabel(const InputData& data,
       data.features_mask, data.semantic_features, measurement.interpolation_weights);
   measurement.label =
       interpolator_->interpolateID(data.label_image, measurement.interpolation_weights);
+  measurement.panoptic_id = interpolator_->interpolatePanoptic(
+      data.features_mask, measurement.interpolation_weights);
   return semantic_integrator_->canIntegrate(measurement.label);
 }
 

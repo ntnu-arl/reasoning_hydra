@@ -55,7 +55,17 @@ SharedModuleState::~SharedModuleState() {
   }
 
   VLOG(2) << "backend_lcd_queue: " << backend_lcd_queue.size();
-  VLOG(2) << "reasoning_queue: " << reasoning_queue.size();
+  if (reasoning_queue) {
+    VLOG(2) << "reasoning_queue: " << reasoning_queue->size();
+  } else {
+    VLOG(2) << "reasoning_queue: n/a";
+  }
+
+  if (blip_labels_queue) {
+    VLOG(2) << "blip_labels_queue: " << blip_labels_queue->size();
+  } else {
+    VLOG(2) << "blip_labels_queue: n/a";
+  }
 }
 
 void BackendModuleStatus::reset() {

@@ -379,6 +379,9 @@ void FrontendModule::updateMesh(const ReconstructionOutput& input) {
     ScopedTimer timer("frontend/mesh_update", input.timestamp_ns, true, 1, false);
     last_mesh_update_->updateMesh(*dsg_->graph->mesh());
     invalidateMeshEdges(*last_mesh_update_);
+    // kimera_pgmo::WriteMesh("/home/albert/Desktop/meshes/dsg_mesh_" +
+    //                     std::to_string(input.timestamp_ns) + ".ply",
+    //                     *dsg_->graph->mesh());
   }  // end timing scope
 
   ScopedTimer timer(
@@ -400,7 +403,8 @@ void FrontendModule::updateObjects(const ReconstructionOutput& input) {
     segmenter_->updateGraph(input.timestamp_ns,
                             clusters,
                             last_mesh_update_->getTotalArchivedVertices(),
-                            *dsg_->graph);
+                            *dsg_->graph,
+                            input.sensor_data->relations);
     addPlaceObjectEdges(input.timestamp_ns);
     // Clear graph meshes of feature vectors
     clearMeshFeatures();
@@ -411,10 +415,15 @@ void FrontendModule::clearMeshFeatures() {
   for (auto& semantic_feature : last_mesh_update_->semantic_feature_updates) {
     semantic_feature = std::nullopt;
   }
+  for (auto& panoptic_id : last_mesh_update_->panoptic_ids_updates) {
+    panoptic_id = std::nullopt;
+  }
   auto mesh = dsg_->graph->mesh();
   for (size_t i = 0; i < mesh->numVertices(); ++i) {
     mesh->setSemanticFeature(i, std::nullopt);
+    mesh->setPanopticID(i, std::nullopt);
   }
+  mesh_compression_->clearFeaturesAndIDs();
 }
 
 using PgmoCloud = pcl::PointCloud<pcl::PointXYZRGBA>;

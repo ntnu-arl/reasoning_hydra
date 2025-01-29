@@ -65,6 +65,7 @@ bool ImageInputPacket::fillInputData(InputData& msg) const {
   msg.features_mask = features_mask;
   msg.semantic_features = semantic_features;
   msg.image_feature = image_feature;
+  msg.relations = relations;
 
   return true;
 }

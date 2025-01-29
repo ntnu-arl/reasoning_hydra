@@ -90,6 +90,7 @@ class BackendModule : public kimera_pgmo::KimeraPgmoInterface, public Module {
     bool enable_rooms = true;
     RoomsFunctorConfig room_functor;
     bool enable_reasoning = true;
+    bool use_blip = false;
     ThreeDSSGConfig reasoning_functor;
     bool enable_buildings = true;
     Color building_color = Color(169, 8, 194);  // purple
@@ -148,7 +149,9 @@ class BackendModule : public kimera_pgmo::KimeraPgmoInterface, public Module {
   inline void triggerBackendDsgReset() { reset_backend_dsg_ = true; }
 
   // used by dsg_optimizer
-  virtual void spinOnce(const BackendInput& input, bool force_update = true);
+  virtual void spinOnce(const BackendInput& input,
+                        const BackendBLIPLabelsInput::Ptr& blip_labels = nullptr,
+                        bool force_update = true);
 
   void loadState(const std::string& state_path, const std::string& dgrf_path);
 
@@ -202,6 +205,8 @@ class BackendModule : public kimera_pgmo::KimeraPgmoInterface, public Module {
   void logIncrementalLoopClosures(const pose_graph_tools::PoseGraph& graph);
 
   void labelRooms(const UpdateInfo& info, SharedDsgInfo* dsg);
+
+  void labelEdges(const BackendBLIPLabelsInput& blip_labels);
 
  protected:
   void stopImpl();

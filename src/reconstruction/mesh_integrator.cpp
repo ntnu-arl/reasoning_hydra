@@ -57,7 +57,8 @@ void MeshIntegrator::allocateBlocks(const BlockIndices& blocks,
                                     OccupancyLayer* occupancy) const {
   auto& mesh_layer = map.getMeshLayer();
   for (const BlockIndex& block_index : blocks) {
-    auto& mesh = mesh_layer.allocateBlock(block_index, map.hasSemantics(), true);
+    auto& mesh = mesh_layer.allocateBlock(
+        block_index, map.hasSemantics(), map.hasSemantics(), map.hasSemantics());
     mesh.clear();
 
     if (!occupancy) {
@@ -246,6 +247,7 @@ void MeshIntegrator::meshBlockInterior(const BlockIndex& block_index,
       if (!semantic_voxel.empty) {
         point.label = semantic_voxel.semantic_label;
         point.semantic_feature = semantic_voxel.feature_vector;
+        point.panoptic_id = semantic_voxel.panoptic_id;
       }
     }
 
@@ -337,6 +339,7 @@ void MeshIntegrator::meshBlockExterior(const BlockIndex& block_index,
     if (semantic_voxel && !semantic_voxel->empty) {
       point.label = semantic_voxel->semantic_label;
       point.semantic_feature = semantic_voxel->feature_vector;
+      point.panoptic_id = semantic_voxel->panoptic_id;
     }
   }
 

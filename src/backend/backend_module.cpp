@@ -74,6 +74,7 @@ void declare_config(BackendModule::Config& config) {
   field(config.enable_rooms, "enable_rooms");
   field(config.room_functor, "room_functor");
   field(config.enable_reasoning, "enable_reasoning");
+  field(config.use_blip, "use_blip");
   field(config.reasoning_functor, "reasoning_functor");
   field(config.enable_buildings, "enable_buildings");
   field(config.building_color, "building_color");
@@ -147,7 +148,7 @@ BackendModule::BackendModule(const Config& config,
         new spark_dsg::ZmqSender(config.zmq_send_url, config.zmq_num_threads));
   }
 
-  if (config.enable_reasoning) {
+  if (config.enable_reasoning && !config.use_blip) {
     objects_attributes_ = std::make_shared<ObjectsAttributes>();
   }
 }
@@ -160,7 +161,7 @@ void BackendModule::start() {
   if (config.use_zmq_interface) {
     zmq_thread_.reset(new std::thread(&BackendModule::runZmqUpdates, this));
   }
-  if (config.enable_reasoning) {
+  if (config.enable_reasoning && !config.use_blip) {
     reasoning_thread_.reset(new std::thread(
         &UpdateReasoningFunctor::spin, reasoning_functor_, std::ref(mutex_)));
   }
@@ -169,7 +170,9 @@ void BackendModule::start() {
 
 void BackendModule::stopImpl() {
   should_shutdown_ = true;
-  reasoning_functor_->setShutdown(true);
+  if (reasoning_functor_) {
+    reasoning_functor_->setShutdown(true);
+  }
 
   if (spin_thread_) {
     VLOG(2) << "[Hydra Backend] joining optimizer thread and stopping";
@@ -256,6 +259,8 @@ void BackendModule::spin() {
   bool should_shutdown = false;
   while (!should_shutdown) {
     bool has_data = state_->backend_queue.poll();
+    bool has_blip_labels_data =
+        state_->blip_labels_queue ? state_->blip_labels_queue->poll() : false;
     if (GlobalInfo::instance().force_shutdown() || !has_data) {
       // copy over shutdown request
       should_shutdown = should_shutdown_;
@@ -265,23 +270,41 @@ void BackendModule::spin() {
       continue;
     }
 
-    spinOnce(*state_->backend_queue.front(), false);
-    state_->backend_queue.pop();
+    spinOnce(*state_->backend_queue.front(),
+             has_blip_labels_data ? state_->blip_labels_queue->front() : nullptr,
+             false);
+    if (has_data) {
+      state_->backend_queue.pop();
+    }
+    if (has_blip_labels_data) {
+      state_->blip_labels_queue->pop();
+    }
   }
 }
 
 bool BackendModule::spinOnce(bool force_update) {
   bool has_data = state_->backend_queue.poll();
+  bool has_blip_labels_data =
+      state_->blip_labels_queue ? state_->blip_labels_queue->poll() : false;
   if (!has_data) {
     return false;
   }
 
-  spinOnce(*state_->backend_queue.front(), force_update);
-  state_->backend_queue.pop();
+  spinOnce(*state_->backend_queue.front(),
+           has_blip_labels_data ? state_->blip_labels_queue->front() : nullptr,
+           force_update);
+  if (has_data) {
+    state_->backend_queue.pop();
+  }
+  if (has_blip_labels_data) {
+    state_->blip_labels_queue->pop();
+  }
   return true;
 }
 
-void BackendModule::spinOnce(const BackendInput& input, bool force_update) {
+void BackendModule::spinOnce(const BackendInput& input,
+                             const BackendBLIPLabelsInput::Ptr& blip_labels,
+                             bool force_update) {
   status_.reset();
   std::lock_guard<std::mutex> lock(mutex_);
 
@@ -311,6 +334,10 @@ void BackendModule::spinOnce(const BackendInput& input, bool force_update) {
     callUpdateFunctions(input.timestamp_ns, input.feature_vector);
   }
 
+  if (blip_labels && !reasoning_functor_) {
+    labelEdges(*blip_labels);
+  }
+
   if (logs_) {
     logStatus();
   }
@@ -324,7 +351,7 @@ void BackendModule::spinOnce(const BackendInput& input, bool force_update) {
                 *private_dsg_->graph,
                 *deformation_graph_,
                 objects_attributes_);
-  if (config.enable_reasoning) {
+  if (objects_attributes_) {
     objects_attributes_->clear();
   }
 }
@@ -386,7 +413,7 @@ void BackendModule::setupDefaultFunctors() {
         config.building_color, config.building_semantic_label);
   }
 
-  if (config.enable_reasoning) {
+  if (config.enable_reasoning && !config.use_blip) {
     reasoning_functor_ = std::make_shared<UpdateReasoningFunctor>(
         config.reasoning_functor, state_, private_dsg_);
   }
@@ -796,7 +823,7 @@ void BackendModule::callUpdateFunctions(
 
   std::list<LayerCleanupFunc> cleanup_hooks;
   // Call reasoning functor first
-  if (config.enable_reasoning) {
+  if (reasoning_functor_) {
     reasoning_functor_->call(info, objects_attributes_);
   }
   // Call layer functors
@@ -881,6 +908,25 @@ void BackendModule::labelRooms(const UpdateInfo&, SharedDsgInfo* dsg) {
     }
 
     id_node_pair.second->attributes<SemanticNodeAttributes>().name = iter->second;
+  }
+}
+
+void BackendModule::labelEdges(const BackendBLIPLabelsInput& blip_labels) {
+  if (!blip_labels.blip_labels) {
+    return;
+  }
+  auto& graph = *(private_dsg_->graph);
+  std::unique_lock<std::mutex> lock(private_dsg_->mutex);
+  for (size_t i = 0; i < blip_labels.blip_labels->labels.size(); i++) {
+    const auto& label = blip_labels.blip_labels->labels[i];
+    const auto& node_ids = blip_labels.blip_labels->edge_ids[i];
+    if (!graph.hasEdge(node_ids.first, node_ids.second) ||
+        !graph.hasNode(node_ids.first) || !graph.hasNode(node_ids.second)) {
+      continue;
+    }
+    auto edge_attrs = graph.getEdge(node_ids.first, node_ids.second).info->clone();
+    edge_attrs->setLabel(node_ids.first, label);
+    graph.setEdgeAttributes(node_ids.first, node_ids.second, std::move(edge_attrs));
   }
 }
 

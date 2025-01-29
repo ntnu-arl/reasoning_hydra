@@ -40,6 +40,7 @@
 #include <set>
 #include <string>
 #include <thread>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -59,6 +60,20 @@ namespace hydra {
 
 class ProjectiveIntegrator;
 class MeshIntegrator;
+
+struct EigenMatrixHash {
+  std::size_t operator()(const spatial_hash::Index& mat) const {
+    return std::hash<int>()(mat(0, 0)) ^ std::hash<int>()(mat(1, 0)) ^
+           std::hash<int>()(mat(2, 0));
+  }
+};
+
+struct EigenMatrixEqual {
+  bool operator()(const spatial_hash::Index& lhs,
+                  const spatial_hash::Index& rhs) const {
+    return lhs == rhs;
+  }
+};
 
 class ReconstructionModule : public Module {
  public:
@@ -118,7 +133,7 @@ class ReconstructionModule : public Module {
 
   void fillOutput(ReconstructionOutput& output);
 
-  void clearSemanticFeatures(const BlockIndices& block_indices);
+  void clearSemanticFeatures();
 
  protected:
   std::atomic<bool> should_shutdown_{false};
@@ -134,6 +149,8 @@ class ReconstructionModule : public Module {
   std::unique_ptr<ProjectiveIntegrator> tsdf_integrator_;
   std::unique_ptr<MeshIntegrator> mesh_integrator_;
   RobotFootprintIntegrator::Ptr footprint_integrator_;
+  std::unordered_set<spatial_hash::Index, EigenMatrixHash, EigenMatrixEqual>
+      updated_blocks_;
 
   inline static const auto registration_ =
       config::RegistrationWithConfig<ReconstructionModule,

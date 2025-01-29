@@ -20,7 +20,7 @@ void UpdateReasoningFunctor::setShutdown(bool should_shutdown) {
 void UpdateReasoningFunctor::spin(std::mutex& mutex) {
   bool should_shutdown = false;
   while (!should_shutdown) {
-    bool has_data = state_->reasoning_queue.poll();
+    bool has_data = state_->reasoning_queue->poll();
     if (GlobalInfo::instance().force_shutdown() || !has_data) {
       // copy over shutdown request
       should_shutdown = should_shutdown_;
@@ -30,8 +30,8 @@ void UpdateReasoningFunctor::spin(std::mutex& mutex) {
       continue;
     }
 
-    spinOnce(*state_->reasoning_queue.front(), mutex);
-    state_->reasoning_queue.pop();
+    spinOnce(*state_->reasoning_queue->front(), mutex);
+    state_->reasoning_queue->pop();
   }
 }
 
@@ -180,34 +180,16 @@ void UpdateReasoningFunctor::updateGraph(const ReasoningOutput& reasoning_data,
     bool edge_exists = graph->hasEdge(object_ids[from], object_ids[to]);
     if (edge_exists) {
       edge = graph->getEdge(object_ids[from], object_ids[to]).info->clone();
-      if (edge->source_id == object_ids[from] &&
-          !reasoning_data.feature_vectors.empty()) {
-        if (!reasoning_data.feature_vectors[i].empty()) {
-          edge->relationship_source_target.feature_vector =
-              reasoning_data.feature_vectors[i];
-        }
-      } else if (edge->source_id == object_ids[to] &&
-                 !reasoning_data.feature_vectors.empty()) {
-        if (!reasoning_data.feature_vectors[i].empty()) {
-          edge->relationship_target_source.feature_vector =
-              reasoning_data.feature_vectors[i];
-        }
-      }
     } else {
       edge->source_id = object_ids[from];
       edge->target_id = object_ids[to];
-      if (!reasoning_data.feature_vectors.empty()) {
-        if (!reasoning_data.feature_vectors[i].empty()) {
-          edge->relationship_source_target.feature_vector =
-              reasoning_data.feature_vectors[i];
-        }
-      }
     }
     edge->min_prob = config_.edge_prob_threshold;
     edge->setRelationshipProperty(object_ids[from],
                                   reasoning_->getRelationships(),
                                   reasoning_data.edge_probs[i],
-                                  reasoning_->getRelationshipColors());
+                                  reasoning_->getRelationshipColors(),
+                                  reasoning_data.features[i]);
 
     if (edge_exists) {
       graph->setEdgeAttributes(object_ids[from], object_ids[to], std::move(edge));

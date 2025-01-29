@@ -78,6 +78,7 @@ class ProjectiveIntegrator {
     float weight = 0.0f;
     int32_t label = -1;
     std::optional<Eigen::VectorXf> semantic_feature_vector;
+    std::optional<uint16_t> panoptic_id;
   };
 
   explicit ProjectiveIntegrator(const ProjectiveIntegratorConfig& config);

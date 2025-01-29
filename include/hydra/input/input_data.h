@@ -10,6 +10,7 @@
 
 #include "hydra/common/common_types.h"
 #include "hydra/input/sensor.h"
+#include "hydra/utils/pair_hash.h"
 
 namespace hydra {
 
@@ -21,6 +22,7 @@ struct InputData {
   using RangeType = float;
   using VertexType = cv::Vec3f;
   using LabelType = int;
+  using RelationFeature = Eigen::MatrixXf;
 
   explicit InputData(Sensor::ConstPtr sensor) : sensor_(std::move(sensor)) {}
   virtual ~InputData() = default;
@@ -51,6 +53,9 @@ struct InputData {
 
   // Image feature vector.
   std::optional<Eigen::VectorXf> image_feature;
+
+  // Semantic relations features
+  std::optional<PairHashMap> relations;
 
   // 3D points of the range image in sensor or world frame.
   cv::Mat vertex_map;

@@ -96,6 +96,8 @@ struct SemanticVoxel {
   uint32_t num_observations = 0;
   //! Whether or not the voxel has been initialized
   bool empty = true;
+  //! Panoptic ID
+  uint16_t panoptic_id = 0;
 };
 
 // Voxel to track which parts of space are free with high confidence.
@@ -141,8 +143,9 @@ struct MeshBlock : public Mesh, public spatial_hash::Block {
   MeshBlock(const float block_size,
             const BlockIndex& index,
             bool has_labels = true,
-            bool has_semantic_features = true)
-      : Mesh(true, false, has_labels, has_semantic_features, false),
+            bool has_semantic_features = true,
+            bool has_panoptic_ids = true)
+      : Mesh(true, false, has_labels, has_semantic_features, has_panoptic_ids, false),
         spatial_hash::Block(block_size, index) {}
 };
 

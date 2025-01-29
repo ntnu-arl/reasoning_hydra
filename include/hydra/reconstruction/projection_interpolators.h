@@ -125,6 +125,15 @@ class ProjectionInterpolator {
       const std::optional<cv::Mat>& features_mask,
       std::optional<std::unordered_map<uint16_t, Eigen::VectorXf>> semantic_features,
       const InterpolationWeights& weights) const = 0;
+
+  /**
+   * @brief Compute the panoptic id based on the provided weights.
+   * @param features_mask Features ids
+   * @param relations Relationship features
+   */
+  virtual std::optional<uint16_t> interpolatePanoptic(
+      const std::optional<cv::Mat>& features_mask,
+      const InterpolationWeights& weights) const = 0;
 };
 
 /**
@@ -149,6 +158,10 @@ class InterpolatorNearest : public ProjectionInterpolator {
   std::optional<Eigen::VectorXf> interpolateFeatures(
       const std::optional<cv::Mat>& features_mask,
       std::optional<std::unordered_map<uint16_t, Eigen::VectorXf>> semantic_features,
+      const InterpolationWeights& weights) const override;
+
+  std::optional<uint16_t> interpolatePanoptic(
+      const std::optional<cv::Mat>& features_mask,
       const InterpolationWeights& weights) const override;
 
  private:
@@ -177,6 +190,10 @@ class InterpolatorBilinear : public ProjectionInterpolator {
   std::optional<Eigen::VectorXf> interpolateFeatures(
       const std::optional<cv::Mat>& features_mask,
       std::optional<std::unordered_map<uint16_t, Eigen::VectorXf>> semantic_features,
+      const InterpolationWeights& weights) const override;
+
+  std::optional<uint16_t> interpolatePanoptic(
+      const std::optional<cv::Mat>& features_mask,
       const InterpolationWeights& weights) const override;
 
  private:
@@ -208,6 +225,10 @@ class InterpolatorAdaptive : public InterpolatorBilinear {
   std::optional<Eigen::VectorXf> interpolateFeatures(
       const std::optional<cv::Mat>& features_mask,
       std::optional<std::unordered_map<uint16_t, Eigen::VectorXf>> semantic_features,
+      const InterpolationWeights& weights) const override;
+
+  std::optional<uint16_t> interpolatePanoptic(
+      const std::optional<cv::Mat>& features_mask,
       const InterpolationWeights& weights) const override;
 
  private:

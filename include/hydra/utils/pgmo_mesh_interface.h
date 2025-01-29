@@ -58,9 +58,13 @@ struct PgmoMeshLayerInterface : public kimera_pgmo::MeshInterface {
 
   bool hasSemanticFeatures() const override;
 
+  bool hasPanopticIDs() const override;
+
   std::optional<uint32_t> getActiveSemantics(size_t index) const override;
 
   std::optional<Eigen::VectorXf> getActiveSemanticFeatures(size_t index) const override;
+
+  std::optional<uint16_t> getActivePanopticID(size_t index) const;
 
   kimera_pgmo::MeshInterface::Ptr clone() const override;
 
@@ -88,9 +92,13 @@ struct PgmoMeshInterface : public kimera_pgmo::MeshInterface {
 
   bool hasSemanticFeatures() const override;
 
+  bool hasPanopticIDs() const override;
+
   std::optional<uint32_t> getActiveSemantics(size_t index) const override;
 
   std::optional<Eigen::VectorXf> getActiveSemanticFeatures(size_t index) const override;
+
+  std::optional<uint16_t> getActivePanopticID(size_t index) const;
 
   kimera_pgmo::MeshInterface::Ptr clone() const override;
 

@@ -82,6 +82,13 @@ struct BackendReasoningInput {
   std::vector<NodeId> node_ids;
 };
 
+struct BackendBLIPLabelsInput {
+  using Ptr = std::shared_ptr<BackendBLIPLabelsInput>;
+
+  uint64_t timestamp_ns;
+  BLIPLabels::ConstPtr blip_labels;
+};
+
 struct SharedModuleState {
   using Ptr = std::shared_ptr<SharedModuleState>;
   using BowQueue = InputQueue<pose_graph_tools::BowQuery::ConstPtr>;
@@ -93,7 +100,8 @@ struct SharedModuleState {
   NodeIdSet latest_places;
 
   InputQueue<BackendInput::Ptr> backend_queue;
-  InputQueue<BackendReasoningInput::Ptr> reasoning_queue;
+  InputQueue<BackendReasoningInput::Ptr>::Ptr reasoning_queue;
+  InputQueue<BackendBLIPLabelsInput::Ptr>::Ptr blip_labels_queue;
   InputQueue<LcdInput::Ptr>::Ptr lcd_queue;
   BowQueue::Ptr bow_queue;
   InputQueue<lcd::RegistrationSolution> backend_lcd_queue;

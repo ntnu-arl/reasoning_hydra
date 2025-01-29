@@ -39,11 +39,18 @@
 #include <config_utilities/types/conversions.h>
 #include <config_utilities/types/eigen_matrix.h>
 #include <config_utilities/validation.h>
+#include <kimera_pgmo/compression/block_compression.h>
+#include <kimera_pgmo/compression/delta_compression.h>
+#include <kimera_pgmo/utils/common_functions.h>
+#include <kimera_pgmo/utils/mesh_io.h>
+
+#include <opencv2/opencv.hpp>
 
 #include "hydra/common/global_info.h"
 #include "hydra/input/input_conversion.h"
 #include "hydra/reconstruction/mesh_integrator.h"
 #include "hydra/reconstruction/projective_integrator.h"
+#include "hydra/utils/pgmo_mesh_traits.h"
 #include "hydra/utils/timing_utilities.h"
 
 namespace hydra {
@@ -65,6 +72,45 @@ void declare_config(ReconstructionModule::Config& conf) {
   conf.robot_footprint.setOptional();
   field(conf.robot_footprint, "robot_footprint");
   field(conf.sinks, "sinks");
+}
+
+Mesh::Ptr activeMesh(const MeshLayer& mesh_layer, const BlockIndices& archived_blocks) {
+  auto active_mesh =
+      std::make_shared<spark_dsg::Mesh>(true, false, true, true, true, false);
+  const BlockIndexSet archived_set(archived_blocks.begin(), archived_blocks.end());
+  size_t num_points = 0;
+  for (const auto& block : mesh_layer.updatedBlockIndices()) {
+    if (archived_set.count(block)) {
+      continue;
+    }
+    auto& block_data = mesh_layer.getBlock(block);
+    active_mesh->points.insert(
+        active_mesh->points.end(), block_data.points.begin(), block_data.points.end());
+    active_mesh->colors.insert(
+        active_mesh->colors.end(), block_data.colors.begin(), block_data.colors.end());
+    active_mesh->stamps.insert(
+        active_mesh->stamps.end(), block_data.stamps.begin(), block_data.stamps.end());
+    active_mesh->first_seen_stamps.insert(active_mesh->first_seen_stamps.end(),
+                                          block_data.first_seen_stamps.begin(),
+                                          block_data.first_seen_stamps.end());
+    active_mesh->labels.insert(
+        active_mesh->labels.end(), block_data.labels.begin(), block_data.labels.end());
+    active_mesh->semantic_features.insert(active_mesh->semantic_features.end(),
+                                          block_data.semantic_features.begin(),
+                                          block_data.semantic_features.end());
+    active_mesh->panoptic_ids.insert(active_mesh->panoptic_ids.end(),
+                                     block_data.panoptic_ids.begin(),
+                                     block_data.panoptic_ids.end());
+    // Remap face indices.
+    for (auto face : block_data.faces) {
+      face[0] += num_points;
+      face[1] += num_points;
+      face[2] += num_points;
+      active_mesh->faces.push_back(face);
+    }
+    num_points += block_data.points.size();
+  }
+  return active_mesh;
 }
 
 ReconstructionModule::ReconstructionModule(const Config& config,
@@ -179,6 +225,17 @@ void ReconstructionModule::fillOutput(ReconstructionOutput& msg) {
   const auto indices = findBlocksToArchive(msg.world_t_body.cast<float>());
   msg.archived_blocks.insert(msg.archived_blocks.end(), indices.begin(), indices.end());
   map_->removeBlocks(indices);
+
+  // const auto writable_mesh = activeMesh(map_->getMeshLayer(), indices);
+  // if (writable_mesh && !writable_mesh->empty()) {
+  //   kimera_pgmo::WriteMesh("/home/albert/Desktop/meshes/mesh_full.ply",
+  //                          *writable_mesh);
+  //   if (msg.sensor_data->features_mask) {
+  //     cv::imwrite("/home/albert/Desktop/panoptic_images/" +
+  //                 std::to_string(msg.timestamp_ns) + ".png",
+  //                 msg.sensor_data->features_mask.value());
+  //   }
+  // }
 }
 
 bool ReconstructionModule::update(const InputPacket& msg, bool full_update) {
@@ -195,6 +252,8 @@ bool ReconstructionModule::update(const InputPacket& msg, bool full_update) {
     ScopedTimer timer("places/tsdf", msg.timestamp_ns);
     updated_blocks = tsdf_integrator_->updateMap(*data, *map_);
   }  // timing scope
+
+  updated_blocks_.insert(updated_blocks.begin(), updated_blocks.end());
 
   if (footprint_integrator_) {
     footprint_integrator_->addFreespaceFootprint(msg.world_T_body().cast<float>(),
@@ -224,7 +283,7 @@ bool ReconstructionModule::update(const InputPacket& msg, bool full_update) {
   fillOutput(*output);
 
   // Remove semantic features from map and mesh
-  clearSemanticFeatures(updated_blocks);
+  clearSemanticFeatures();
 
   Sink::callAll(sinks_, msg.timestamp_ns, data->getSensorPose(), tsdf, *output);
 
@@ -240,20 +299,36 @@ bool ReconstructionModule::update(const InputPacket& msg, bool full_update) {
   return true;
 }
 
-void ReconstructionModule::clearSemanticFeatures(const BlockIndices& block_indices) {
+void ReconstructionModule::clearSemanticFeatures() {
   // Start with semantic layer
-  for (const auto& idx : block_indices) {
+  for (const auto& idx : updated_blocks_) {
     auto blocks = map_->getBlock(idx);
-    for (size_t i = 0; i < blocks.tsdf->numVoxels(); ++i) {
-      auto voxels = blocks.getVoxels(i);
-      voxels.semantic->feature_vector = std::nullopt;
+    if (blocks.tsdf) {
+      for (size_t i = 0; i < blocks.tsdf->numVoxels(); ++i) {
+        auto voxels = blocks.getVoxels(i);
+        if (voxels.semantic) {
+          voxels.semantic->feature_vector = std::nullopt;
+          voxels.semantic->panoptic_id = 0;
+        }
+      }
     }
     // Continue with mesh layer
     auto mesh = map_->getMeshLayer().getBlockPtr(idx);
-    for (auto& semantic_feature : mesh->semantic_features) {
-      semantic_feature = std::nullopt;
+    if (!mesh) {
+      continue;
+    }
+    if (mesh->has_semantic_features) {
+      for (auto& semantic_feature : mesh->semantic_features) {
+        semantic_feature = std::nullopt;
+      }
+    }
+    if (mesh->has_panoptic_ids) {
+      for (auto& panoptic_id : mesh->panoptic_ids) {
+        panoptic_id = std::nullopt;
+      }
     }
   }
+  updated_blocks_.clear();
 }
 
 // TODO(nathan) push to map?

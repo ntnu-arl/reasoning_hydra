@@ -64,6 +64,7 @@ struct SemanticIntegrator {
   virtual void updateLikelihoods(
       uint32_t label,
       const std::optional<Eigen::VectorXf>& semantic_feature_vector,
+      const std::optional<uint16_t>& panoptic_id,
       SemanticVoxel& voxel) const = 0;
 };
 
@@ -83,6 +84,7 @@ class MLESemanticIntegrator : public SemanticIntegrator {
 
   void updateLikelihoods(uint32_t label,
                          const std::optional<Eigen::VectorXf>& semantic_feature_vector,
+                         const std::optional<uint16_t>& panoptic_id,
                          SemanticVoxel& voxel) const override;
 
  protected:

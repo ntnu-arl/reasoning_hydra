@@ -35,11 +35,14 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "hydra/input/input_data.h"
+#include "hydra/utils/pair_hash.h"
 
 namespace hydra {
 
@@ -61,6 +64,8 @@ struct SensorInputPacket {
 
 struct ImageInputPacket : public SensorInputPacket {
   using Ptr = std::shared_ptr<ImageInputPacket>;
+
+  using RelationFeature = Eigen::MatrixXf;
   explicit ImageInputPacket(uint64_t stamp, size_t sensor_id);
 
   bool fillInputData(InputData& msg) const override;
@@ -71,6 +76,7 @@ struct ImageInputPacket : public SensorInputPacket {
   std::optional<cv::Mat> features_mask;
   std::optional<std::unordered_map<uint16_t, Eigen::VectorXf>> semantic_features;
   std::optional<Eigen::VectorXf> image_feature;
+  std::optional<PairHashMap> relations;
   bool color_is_bgr = false;  // Otherwise, color is RGB already.
 };
 

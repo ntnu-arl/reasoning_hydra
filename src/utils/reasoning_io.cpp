@@ -36,9 +36,23 @@ void parseReasoningJson(const std::string& filename,
     data.edge_probs = jsonData[room_name]["edge_probs"].get<EdgeProbs>();
   }
 
-  // Parse "feature_vectors"
-  if (jsonData[room_name].contains("feature_vectors")) {
-    data.feature_vectors = jsonData[room_name]["feature_vectors"].get<FeatureVectors>();
+  // Parse "features"
+  if (jsonData[room_name].contains("features")) {
+    const auto& features_vector =
+        jsonData[room_name]["features"]
+            .get<std::vector<std::vector<std::vector<float>>>>();
+    if (features_vector.empty()) {
+      return;
+    }
+    const size_t num_features = features_vector.size();
+    const size_t num_rows = features_vector[0].size();
+    const size_t num_cols = features_vector[0][0].size();
+    data.features =
+        std::vector<Eigen::MatrixXf>(num_features, Eigen::MatrixXf(num_rows, num_cols));
+    for (size_t i = 0; i < num_features; ++i) {
+      data.features[i] = Eigen::Map<const Eigen::MatrixXf>(
+          features_vector[0][i].data(), num_rows, num_cols);
+    }
   }
 
   file.close();

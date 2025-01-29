@@ -54,6 +54,7 @@ struct SdfPoint {
   Color color;
   std::optional<uint32_t> label;
   std::optional<Eigen::VectorXf> semantic_feature;
+  std::optional<uint16_t> panoptic_id;
   OccupancyVoxel* vertex_voxel = nullptr;
 };
 

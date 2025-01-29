@@ -83,6 +83,21 @@ int InterpolatorNearest::interpolateID(const cv::Mat& id_image,
   return id_image.at<int32_t>(weights.v, weights.u);
 }
 
+std::optional<uint16_t> InterpolatorNearest::interpolatePanoptic(
+    const std::optional<cv::Mat>& features_mask,
+    const InterpolationWeights& weights) const {
+  if (!features_mask) {
+    return std::nullopt;
+  }
+
+  const auto feature_index = features_mask.value().at<uint16_t>(weights.v, weights.u);
+  if (feature_index == 0) {
+    return std::nullopt;
+  }
+
+  return features_mask.value().at<uint16_t>(weights.v, weights.u);
+}
+
 std::optional<Eigen::VectorXf> InterpolatorNearest::interpolateFeatures(
     const std::optional<cv::Mat>& features_mask,
     std::optional<std::unordered_map<uint16_t, Eigen::VectorXf>> semantic_features,
@@ -156,6 +171,36 @@ int InterpolatorBilinear::interpolateID(const cv::Mat& id_image,
              std::end(ids),
              [](const auto& p1, const auto& p2) { return p1.second < p2.second; })
       ->first;
+}
+
+std::optional<uint16_t> InterpolatorBilinear::interpolatePanoptic(
+    const std::optional<cv::Mat>& features_mask,
+    const InterpolationWeights& weights) const {
+  if (!features_mask) {
+    return std::nullopt;
+  }
+
+  std::unordered_map<uint16_t, float> panoptic_weights;
+  panoptic_weights[features_mask.value().at<uint16_t>(weights.v, weights.u)] +=
+      weights.w0;
+  panoptic_weights[features_mask.value().at<uint16_t>(weights.v + 1, weights.u)] +=
+      weights.w1;
+  panoptic_weights[features_mask.value().at<uint16_t>(weights.v, weights.u + 1)] +=
+      weights.w2;
+  panoptic_weights[features_mask.value().at<uint16_t>(weights.v + 1, weights.u + 1)] +=
+      weights.w3;
+
+  uint16_t max_element = std::max_element(std::begin(panoptic_weights),
+                                          std::end(panoptic_weights),
+                                          [](const auto& p1, const auto& p2) {
+                                            return p1.second < p2.second;
+                                          })
+                             ->first;
+
+  if (max_element == 0) {
+    return std::nullopt;
+  }
+  return max_element;
 }
 
 std::optional<Eigen::VectorXf> InterpolatorBilinear::interpolateFeatures(
@@ -266,6 +311,24 @@ int InterpolatorAdaptive::interpolateID(const cv::Mat& id_image,
     return InterpolatorBilinear::interpolateID(id_image, weights);
   }
   return id_image.at<int32_t>(weights.v, weights.u);
+}
+
+std::optional<uint16_t> InterpolatorAdaptive::interpolatePanoptic(
+    const std::optional<cv::Mat>& features_mask,
+    const InterpolationWeights& weights) const {
+  if (!features_mask) {
+    return std::nullopt;
+  }
+
+  if (weights.use_bilinear) {
+    return InterpolatorBilinear::interpolatePanoptic(features_mask, weights);
+  }
+
+  const auto feature_index = features_mask.value().at<uint16_t>(weights.v, weights.u);
+  if (feature_index == 0) {
+    return std::nullopt;
+  }
+  return features_mask.value().at<uint16_t>(weights.v, weights.u);
 }
 
 std::optional<Eigen::VectorXf> InterpolatorAdaptive::interpolateFeatures(
