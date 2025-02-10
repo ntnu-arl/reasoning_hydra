@@ -126,10 +126,12 @@ void mergeEdges(DynamicSceneGraph& graph,
                 const NodeId& new_node_id,
                 std::unordered_map<NodeId, std::set<NodeId>>& active_edges) {
   for (const auto& target_id : active_edges[old_node_id]) {
+    // Case when the old node is merged with the target node
     if (target_id == new_node_id) {
       graph.removeEdge(old_node_id, target_id);
       active_edges[old_node_id].erase(target_id);
       active_edges[target_id].erase(old_node_id);
+      continue;
     }
 
     auto edge = graph.getEdge(old_node_id, target_id).info->clone();

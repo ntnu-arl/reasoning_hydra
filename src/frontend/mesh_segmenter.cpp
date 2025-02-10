@@ -207,6 +207,9 @@ Clusters findClusters(const MeshSegmenter::Config& config,
     auto& cluster = clusters.at(k);
     const auto& curr_indices = cluster_indices.at(k).indices;
     std::size_t num_valid_features = 0;
+    std::unordered_map<uint16_t, size_t> cluster_panoptic_ids;
+    uint16_t max_panoptic_id = 0;
+    size_t max_panoptic_count = 0;
     for (const auto local_idx : curr_indices) {
       cluster.indices.push_back(delta.getGlobalIndex(local_idx));
 
@@ -246,7 +249,7 @@ Clusters findClusters(const MeshSegmenter::Config& config,
       }
     }
 
-    if (delta.hasPanopticIDs()) {
+    if (delta.hasPanopticIDs() && max_panoptic_count > 0) {
       cluster.panoptic_id = max_panoptic_id;
     }
   }
@@ -333,6 +336,14 @@ void MeshSegmenter::archiveOldNodes(const DynamicSceneGraph& graph,
 
     for (const auto& node_id : removed_nodes) {
       active_nodes_[label].erase(node_id);
+      if (active_edges_.count(node_id) && !graph.hasNode(node_id)) {
+        active_edges_.erase(node_id);
+        for (auto& [source_id, targets] : active_edges_) {
+          if (targets.count(node_id)) {
+            targets.erase(node_id);
+          }
+        }
+      }
     }
   }
 }
@@ -352,7 +363,6 @@ void MeshSegmenter::updateGraph(uint64_t timestamp_ns,
   for (auto&& [label, clusters_for_label] : clusters) {
     for (const auto& cluster : clusters_for_label) {
       bool matches_prev_node = false;
-      std::vector<NodeId> nodes_not_in_graph;
       for (const auto& prev_node_id : active_nodes_.at(label)) {
         const auto& prev_node = graph.getNode(prev_node_id);
         if (nodesMatch(cluster, prev_node)) {
@@ -455,6 +465,107 @@ void MeshSegmenter::updateGraph(uint64_t timestamp_ns,
               }
             }
             if (!success) {
+              LOG(ERROR) << "Failed to update edge attributes for relation: "
+                         << subject_panoptic_id.value() << " -> "
+                         << object_panoptic_id.value();
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Update the graph with possible new edge features
+  if (relations) {
+    // Temporary debug: print relations keys
+    // std::cout << std::endl << "Relations: " << std::endl;
+    // for (const auto& kv : relations.value()) {
+    //   std::cout << "Relation: " << kv.first.first << " -> " << kv.first.second
+    //             << std::endl;
+    // }
+    for (auto&& [label, clusters_for_label] : clusters) {
+      for (const auto& cluster : clusters_for_label) {
+        const auto& subject_panoptic_id = cluster.panoptic_id;
+        if (!subject_panoptic_id) {
+          continue;
+        }
+        bool matches_prev_node = false;
+        NodeId subject_node_id;
+        for (const auto& prev_node_id : active_nodes_.at(label)) {
+          const auto& prev_node = graph.getNode(prev_node_id);
+          if (nodesMatch(cluster, prev_node)) {
+            matches_prev_node = true;
+            subject_node_id = prev_node_id;
+            break;
+          }
+        }
+        if (!matches_prev_node) {
+          continue;
+        }
+        for (const auto& [object_label, object_clusters] : clusters) {
+          for (const auto& object_cluster : object_clusters) {
+            const auto& object_panoptic_id = object_cluster.panoptic_id;
+            if (!object_panoptic_id) {
+              continue;
+            }
+            if (*subject_panoptic_id == *object_panoptic_id) {
+              continue;
+            }
+            const auto subject_object_pair =
+                std::make_pair(*subject_panoptic_id, *object_panoptic_id);
+            if (!relations.value().count(subject_object_pair)) {
+              continue;
+            }
+            matches_prev_node = false;
+            NodeId object_node_id;
+            for (const auto& prev_node_id : active_nodes_.at(object_label)) {
+              const auto& prev_node = graph.getNode(prev_node_id);
+              if (nodesMatch(object_cluster, prev_node)) {
+                matches_prev_node = true;
+                object_node_id = prev_node_id;
+                break;
+              }
+            }
+            if (!matches_prev_node) {
+              continue;
+            }
+
+            if (subject_node_id == object_node_id) {
+              continue;
+            }
+
+            const auto& relation = relations.value().at(subject_object_pair);
+            EdgeAttributes::Ptr edge = std::make_unique<EdgeAttributes>(1.0);
+            bool edge_exists = graph.hasEdge(subject_node_id, object_node_id);
+            // Check if edge already exists
+            if (edge_exists) {
+              edge = graph.getEdge(subject_node_id, object_node_id).info->clone();
+            } else {
+              edge->source_id = subject_node_id;
+              edge->target_id = object_node_id;
+            }
+
+            edge->min_prob = 1.0;
+            edge->setRelationshipProperty(subject_node_id,
+                                          std::vector<std::string>(),
+                                          std::vector<double>(),
+                                          std::vector<Color>(),
+                                          relation);
+            bool success = false;
+            if (edge_exists) {
+              success = graph.setEdgeAttributes(
+                  subject_node_id, object_node_id, std::move(edge));
+            } else {
+              success =
+                  graph.insertEdge(subject_node_id, object_node_id, std::move(edge));
+            }
+            if (success) {
+              if (active_edges_.count(subject_node_id)) {
+                active_edges_[subject_node_id].insert(object_node_id);
+              } else {
+                active_edges_[subject_node_id] = std::set<NodeId>{object_node_id};
+              }
+            } else {
               LOG(ERROR) << "Failed to update edge attributes for relation: "
                          << subject_panoptic_id.value() << " -> "
                          << object_panoptic_id.value();
