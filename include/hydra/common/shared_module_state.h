@@ -82,11 +82,11 @@ struct BackendReasoningInput {
   std::vector<NodeId> node_ids;
 };
 
-struct BackendBLIPLabelsInput {
-  using Ptr = std::shared_ptr<BackendBLIPLabelsInput>;
+struct BackendVLMLabelsInput {
+  using Ptr = std::shared_ptr<BackendVLMLabelsInput>;
 
   uint64_t timestamp_ns;
-  BLIPLabels::ConstPtr blip_labels;
+  VLMLabels::ConstPtr vlm_labels;
 };
 
 struct SharedModuleState {
@@ -101,7 +101,7 @@ struct SharedModuleState {
 
   InputQueue<BackendInput::Ptr> backend_queue;
   InputQueue<BackendReasoningInput::Ptr>::Ptr reasoning_queue;
-  InputQueue<BackendBLIPLabelsInput::Ptr>::Ptr blip_labels_queue;
+  InputQueue<BackendVLMLabelsInput::Ptr>::Ptr vlm_labels_queue;
   InputQueue<LcdInput::Ptr>::Ptr lcd_queue;
   BowQueue::Ptr bow_queue;
   InputQueue<lcd::RegistrationSolution> backend_lcd_queue;
