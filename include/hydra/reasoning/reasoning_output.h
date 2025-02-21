@@ -37,9 +37,9 @@ struct ReasoningOutput {
   EdgeIndices edge_indices;
 };
 
-struct BLIPLabels {
-  using ConstPtr = std::shared_ptr<const BLIPLabels>;
-  using Ptr = std::shared_ptr<BLIPLabels>;
+struct VLMLabels {
+  using ConstPtr = std::shared_ptr<const VLMLabels>;
+  using Ptr = std::shared_ptr<VLMLabels>;
 
   EdgeIds edge_ids;
   Labels labels;

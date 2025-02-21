@@ -61,10 +61,10 @@ SharedModuleState::~SharedModuleState() {
     VLOG(2) << "reasoning_queue: n/a";
   }
 
-  if (blip_labels_queue) {
-    VLOG(2) << "blip_labels_queue: " << blip_labels_queue->size();
+  if (vlm_labels_queue) {
+    VLOG(2) << "vlm_labels_queue: " << vlm_labels_queue->size();
   } else {
-    VLOG(2) << "blip_labels_queue: n/a";
+    VLOG(2) << "vlm_labels_queue: n/a";
   }
 }
 

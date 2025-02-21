@@ -74,7 +74,7 @@ void declare_config(BackendModule::Config& config) {
   field(config.enable_rooms, "enable_rooms");
   field(config.room_functor, "room_functor");
   field(config.enable_reasoning, "enable_reasoning");
-  field(config.use_blip, "use_blip");
+  field(config.use_vlm, "use_vlm");
   field(config.reasoning_functor, "reasoning_functor");
   field(config.enable_buildings, "enable_buildings");
   field(config.building_color, "building_color");
@@ -148,7 +148,7 @@ BackendModule::BackendModule(const Config& config,
         new spark_dsg::ZmqSender(config.zmq_send_url, config.zmq_num_threads));
   }
 
-  if (config.enable_reasoning && !config.use_blip) {
+  if (config.enable_reasoning && !config.use_vlm) {
     objects_attributes_ = std::make_shared<ObjectsAttributes>();
   }
 }
@@ -161,7 +161,7 @@ void BackendModule::start() {
   if (config.use_zmq_interface) {
     zmq_thread_.reset(new std::thread(&BackendModule::runZmqUpdates, this));
   }
-  if (config.enable_reasoning && !config.use_blip) {
+  if (config.enable_reasoning && !config.use_vlm) {
     reasoning_thread_.reset(new std::thread(
         &UpdateReasoningFunctor::spin, reasoning_functor_, std::ref(mutex_)));
   }
@@ -259,8 +259,8 @@ void BackendModule::spin() {
   bool should_shutdown = false;
   while (!should_shutdown) {
     bool has_data = state_->backend_queue.poll();
-    bool has_blip_labels_data =
-        state_->blip_labels_queue ? state_->blip_labels_queue->poll() : false;
+    bool has_vlm_labels_data =
+        state_->vlm_labels_queue ? state_->vlm_labels_queue->poll() : false;
     if (GlobalInfo::instance().force_shutdown() || !has_data) {
       // copy over shutdown request
       should_shutdown = should_shutdown_;
@@ -271,39 +271,39 @@ void BackendModule::spin() {
     }
 
     spinOnce(*state_->backend_queue.front(),
-             has_blip_labels_data ? state_->blip_labels_queue->front() : nullptr,
+             has_vlm_labels_data ? state_->vlm_labels_queue->front() : nullptr,
              false);
     if (has_data) {
       state_->backend_queue.pop();
     }
-    if (has_blip_labels_data) {
-      state_->blip_labels_queue->pop();
+    if (has_vlm_labels_data) {
+      state_->vlm_labels_queue->pop();
     }
   }
 }
 
 bool BackendModule::spinOnce(bool force_update) {
   bool has_data = state_->backend_queue.poll();
-  bool has_blip_labels_data =
-      state_->blip_labels_queue ? state_->blip_labels_queue->poll() : false;
+  bool has_vlm_labels_data =
+      state_->vlm_labels_queue ? state_->vlm_labels_queue->poll() : false;
   if (!has_data) {
     return false;
   }
 
   spinOnce(*state_->backend_queue.front(),
-           has_blip_labels_data ? state_->blip_labels_queue->front() : nullptr,
+           has_vlm_labels_data ? state_->vlm_labels_queue->front() : nullptr,
            force_update);
   if (has_data) {
     state_->backend_queue.pop();
   }
-  if (has_blip_labels_data) {
-    state_->blip_labels_queue->pop();
+  if (has_vlm_labels_data) {
+    state_->vlm_labels_queue->pop();
   }
   return true;
 }
 
 void BackendModule::spinOnce(const BackendInput& input,
-                             const BackendBLIPLabelsInput::Ptr& blip_labels,
+                             const BackendVLMLabelsInput::Ptr& vlm_labels,
                              bool force_update) {
   status_.reset();
   std::lock_guard<std::mutex> lock(mutex_);
@@ -334,8 +334,8 @@ void BackendModule::spinOnce(const BackendInput& input,
     callUpdateFunctions(input.timestamp_ns, input.feature_vector);
   }
 
-  if (blip_labels && !reasoning_functor_) {
-    labelEdges(*blip_labels);
+  if (vlm_labels && !reasoning_functor_) {
+    labelEdges(*vlm_labels);
   }
 
   if (logs_) {
@@ -413,7 +413,7 @@ void BackendModule::setupDefaultFunctors() {
         config.building_color, config.building_semantic_label);
   }
 
-  if (config.enable_reasoning && !config.use_blip) {
+  if (config.enable_reasoning && !config.use_vlm) {
     reasoning_functor_ = std::make_shared<UpdateReasoningFunctor>(
         config.reasoning_functor, state_, private_dsg_);
   }
@@ -911,15 +911,15 @@ void BackendModule::labelRooms(const UpdateInfo&, SharedDsgInfo* dsg) {
   }
 }
 
-void BackendModule::labelEdges(const BackendBLIPLabelsInput& blip_labels) {
-  if (!blip_labels.blip_labels) {
+void BackendModule::labelEdges(const BackendVLMLabelsInput& vlm_labels) {
+  if (!vlm_labels.vlm_labels) {
     return;
   }
   auto& graph = *(private_dsg_->graph);
   std::unique_lock<std::mutex> lock(private_dsg_->mutex);
-  for (size_t i = 0; i < blip_labels.blip_labels->labels.size(); i++) {
-    const auto& label = blip_labels.blip_labels->labels[i];
-    const auto& node_ids = blip_labels.blip_labels->edge_ids[i];
+  for (size_t i = 0; i < vlm_labels.vlm_labels->labels.size(); i++) {
+    const auto& label = vlm_labels.vlm_labels->labels[i];
+    const auto& node_ids = vlm_labels.vlm_labels->edge_ids[i];
     if (!graph.hasEdge(node_ids.first, node_ids.second) ||
         !graph.hasNode(node_ids.first) || !graph.hasNode(node_ids.second)) {
       continue;
