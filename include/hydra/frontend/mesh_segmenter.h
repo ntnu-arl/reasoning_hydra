@@ -113,7 +113,6 @@ class MeshSegmenter {
   void mergeActiveNodes(DynamicSceneGraph& graph,
                         uint32_t label,
                         bool semantic_feature,
-                        std::unordered_map<uint16_t, NodeId>& panoptic_id_to_node,
                         std::unordered_map<NodeId, uint16_t>& node_to_panoptic_id);
 
  private:
