@@ -79,7 +79,7 @@ void NavigationModule::spinOnce(const NavigationInput::Ptr& input) {
       scene_graph_->dynamicLayersOfType(spark_dsg::DsgLayers::AGENTS).begin()->second;
   const auto& agent_node = agent_layer->getNodeByIndex(agent_layer->numNodes() - 1);
   const auto& graph_edges =
-      scene_graph_->getLayer(spark_dsg::DsgLayers::OBJECTS).edges();
+      scene_graph_->getLayer(spark_dsg::DsgLayers::PLACES).edges();
   std::set<EdgeKey> edges;
   for (const auto& [key, _] : graph_edges) {
     if (!place_nodes.count(key.k1) || !place_nodes.count(key.k2)) {
@@ -102,6 +102,7 @@ void NavigationModule::spinOnce(const NavigationInput::Ptr& input) {
                         path)) {
       continue;
     }
+    path.explanation = input->explanation[i];
     output.push_back(path);
   }
   output_queue_->push(output);
