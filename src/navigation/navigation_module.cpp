@@ -105,6 +105,9 @@ void NavigationModule::spinOnce(const NavigationInput::Ptr& input) {
     path.explanation = input->explanation[i];
     output.push_back(path);
   }
+  if (output.empty()) {
+    return;
+  }
   output_queue_->push(output);
 }
 
