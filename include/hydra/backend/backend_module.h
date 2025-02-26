@@ -96,6 +96,7 @@ class BackendModule : public kimera_pgmo::KimeraPgmoInterface, public Module {
     Color building_color = Color(169, 8, 194);  // purple
     SemanticNodeAttributes::Label building_semantic_label = 22u;
     HydraPgmoConfig pgmo;
+    bool always_update_labels = false;
     // dsg
     bool add_places_to_deformation_graph = true;
     bool optimize_on_lc = true;

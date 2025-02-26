@@ -50,6 +50,7 @@ building_semantic_label: 22
 building_color: [169, 8, 194]
 visualize_place_factors: false
 enable_rooms: true
+always_update_labels: false
 room_functor:
   room_finder_config:
     min_dilation_m: 0.5

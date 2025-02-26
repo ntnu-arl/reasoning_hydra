@@ -82,6 +82,7 @@ void declare_config(BackendModule::Config& config) {
   field(config.pgmo, "pgmo");
   field(config.use_2d_places, "use_2d_places");
   field(config.places2d_config, "places2d_config");
+  field(config.always_update_labels, "always_update_labels");
 
   enter_namespace("dsg");
   field(config.add_places_to_deformation_graph, "add_places_to_deformation_graph");
@@ -267,6 +268,19 @@ void BackendModule::spin() {
     }
 
     if (!has_data) {
+      if (config.always_update_labels && has_vlm_labels_data) {
+        const auto& input = state_->vlm_labels_queue->front();
+        labelEdges(*input);
+        Sink::callAll(sinks_,
+                      input->timestamp_ns,
+                      *private_dsg_->graph,
+                      *deformation_graph_,
+                      objects_attributes_);
+        if (objects_attributes_) {
+          objects_attributes_->clear();
+        }
+        state_->vlm_labels_queue->pop();
+      }
       continue;
     }
 
