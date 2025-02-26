@@ -10,17 +10,23 @@
 #include <spark_dsg/node_attributes.h>
 
 #include <atomic>
+#include <functional>
+#include <map>
 #include <memory>
 #include <mutex>
+#include <set>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "hydra/common/global_info.h"
 #include "hydra/common/module.h"
 #include "hydra/common/output_sink.h"
 #include "hydra/common/shared_module_state.h"
+#include "hydra/navigation/dijkstra.h"
 #include "hydra/utils/log_utilities.h"
 
 namespace hydra {
@@ -47,7 +53,13 @@ using NavigationOutput = std::vector<NavigationPath>;
 class NavigationModule : public Module {
  public:
   using Ptr = std::shared_ptr<NavigationModule>;
-  using Sink = OutputSink<const NavigationOutput&>;
+  using PathMethodVariant =
+      std::variant<std::function<void(const std::map<NodeId, SceneGraphNode::Ptr>&,
+                                      const std::set<EdgeKey>&,
+                                      const NodeId&,
+                                      const NodeId&,
+                                      std::vector<NodeId>&,
+                                      std::vector<Eigen::Vector3d>&)>>;
 
   struct Config {
   } const config;
@@ -67,14 +79,32 @@ class NavigationModule : public Module {
 
   void spinOnce(const NavigationInput::Ptr& input);
 
+  void setGraph(const DynamicSceneGraph::Ptr& scene_graph);
+
+  InputQueue<NavigationInput::Ptr>::Ptr inputQueue() const { return input_queue_; }
+
+  InputQueue<NavigationOutput>::Ptr outputQueue() const { return output_queue_; }
+
  protected:
   void stopImpl();
+
+  bool findNavigation(const NodeId& obj1,
+                      const NodeId& obj2,
+                      const std::string& method,
+                      const SceneGraphLayer::Nodes& place_nodes,
+                      const SceneGraphLayer& object_layer,
+                      const DynamicSceneGraphLayer::Ptr& agent_layer,
+                      const SceneGraphNode& agent_node,
+                      const std::set<EdgeKey>& edges,
+                      NavigationPath& output) const;
 
   std::unique_ptr<std::thread> spin_thread_;
   std::atomic<bool> should_shutdown_{false};
   DynamicSceneGraph::Ptr scene_graph_;
 
-  InputQueue<NavigationInput::Ptr>::Ptr navigation_queue_;
+  InputQueue<NavigationInput::Ptr>::Ptr input_queue_;
+  InputQueue<NavigationOutput>::Ptr output_queue_;
+  std::unordered_map<std::string, PathMethodVariant> shortest_path_methods_;
 
   std::mutex mutex_;
 };
