@@ -24,7 +24,6 @@
 
 #include "hydra/common/global_info.h"
 #include "hydra/common/module.h"
-#include "hydra/common/output_sink.h"
 #include "hydra/common/shared_module_state.h"
 #include "hydra/navigation/dijkstra.h"
 #include "hydra/utils/log_utilities.h"
@@ -99,14 +98,13 @@ class NavigationModule : public Module {
                       NavigationPath& output) const;
 
   std::unique_ptr<std::thread> spin_thread_;
+  std::mutex mutex_;
   std::atomic<bool> should_shutdown_{false};
-  DynamicSceneGraph::Ptr scene_graph_;
 
+  DynamicSceneGraph::Ptr scene_graph_;
   InputQueue<NavigationInput::Ptr>::Ptr input_queue_;
   InputQueue<NavigationOutput>::Ptr output_queue_;
   std::unordered_map<std::string, PathMethodVariant> shortest_path_methods_;
-
-  std::mutex mutex_;
 };
 
 void declare_config(NavigationModule::Config& conf);
