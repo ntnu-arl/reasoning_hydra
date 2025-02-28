@@ -91,15 +91,8 @@ void NavigationModule::spinOnce(const NavigationInput::Ptr& input) {
   for (size_t i = 0; i < input->object_ids.size(); ++i) {
     const auto& [obj1, obj2] = input->object_ids[i];
     NavigationPath path;
-    if (!findNavigation(obj1,
-                        obj2,
-                        method,
-                        place_nodes,
-                        object_layer,
-                        agent_layer,
-                        agent_node,
-                        edges,
-                        path)) {
+    if (!findNavigation(
+            obj1, obj2, method, place_nodes, object_layer, agent_node, edges, path)) {
       continue;
     }
     path.explanation = input->explanation[i];
@@ -116,7 +109,6 @@ bool NavigationModule::findNavigation(const NodeId& obj1,
                                       const std::string& method,
                                       const SceneGraphLayer::Nodes& place_nodes,
                                       const SceneGraphLayer& object_layer,
-                                      const DynamicSceneGraphLayer::Ptr& agent_layer,
                                       const SceneGraphNode& agent_node,
                                       const std::set<EdgeKey>& edges,
                                       NavigationPath& output) const {

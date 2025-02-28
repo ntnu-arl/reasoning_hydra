@@ -92,7 +92,6 @@ class NavigationModule : public Module {
                       const std::string& method,
                       const SceneGraphLayer::Nodes& place_nodes,
                       const SceneGraphLayer& object_layer,
-                      const DynamicSceneGraphLayer::Ptr& agent_layer,
                       const SceneGraphNode& agent_node,
                       const std::set<EdgeKey>& edges,
                       NavigationPath& output) const;
