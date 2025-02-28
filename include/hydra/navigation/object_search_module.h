@@ -14,11 +14,13 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 #include "hydra/common/global_info.h"
 #include "hydra/common/module.h"
 #include "hydra/common/shared_module_state.h"
+#include "hydra/navigation/cos_sim_search.h"
 #include "hydra/utils/log_utilities.h"
 
 namespace hydra {
@@ -47,6 +49,7 @@ struct ObjectSearchOutput {
     std::vector<ObjectFeature> relationships;
   };
   std::vector<ObjectRelationship> objects;
+  std::string room;
 };
 
 class ObjectSearchModule : public Module {
@@ -80,11 +83,19 @@ class ObjectSearchModule : public Module {
  protected:
   void stopImpl();
 
+  NodeId findRoom(const ObjectSearchInput::Ptr& input,
+                  ObjectSearchOutput::Ptr& output) const;
+
+  bool findObjects(const ObjectSearchInput::Ptr& input,
+                   ObjectSearchOutput::Ptr& output,
+                   const NodeId& chosen_room_id) const;
+
   std::unique_ptr<std::thread> spin_thread_;
   std::mutex mutex_;
   std::atomic<bool> should_shutdown_{false};
 
   DynamicSceneGraph::Ptr scene_graph_;
+  CosSimSearch::Ptr cos_sim_search_;
   InputQueue<ObjectSearchInput::Ptr>::Ptr input_queue_;
   InputQueue<ObjectSearchOutput::Ptr>::Ptr output_queue_;
 };
