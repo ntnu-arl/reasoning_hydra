@@ -83,8 +83,8 @@ NodeId ObjectSearchModule::findRoom(const ObjectSearchInput::Ptr& input,
   for (const auto& [room_id, room_node] : room_nodes) {
     if (!input->room.empty()) {
       if (room_node->attributes<SemanticNodeAttributes>().name == input->room) {
-        output->room = room_id;
-        break;
+        output->room = input->room;
+        return room_id;
       }
     } else {
       room_embeddings.push_back(
@@ -113,6 +113,9 @@ bool ObjectSearchModule::findObjects(const ObjectSearchInput::Ptr& input,
   std::vector<Eigen::VectorXf> object_embeddings;
 
   for (const auto& [object_id, object_node] : object_nodes) {
+    if (!object_node->attributes<ObjectNodeAttributes>().validFeatures()) {
+      continue;
+    }
     const auto& place_id = object_node->getParent();
     if (!place_id) {
       continue;
