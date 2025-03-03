@@ -21,6 +21,7 @@
 #include "hydra/common/module.h"
 #include "hydra/common/shared_module_state.h"
 #include "hydra/navigation/cos_sim_search.h"
+#include "hydra/navigation/search.h"
 #include "hydra/utils/log_utilities.h"
 
 namespace hydra {
@@ -57,7 +58,8 @@ class ObjectSearchModule : public Module {
   using Ptr = std::shared_ptr<ObjectSearchModule>;
 
   struct Config {
-  } config;
+    config::VirtualConfig<Search> search;
+  } const config;
 
   explicit ObjectSearchModule(const Config& config);
   ~ObjectSearchModule() override;
@@ -81,8 +83,6 @@ class ObjectSearchModule : public Module {
   InputQueue<ObjectSearchOutput::Ptr>::Ptr outputQueue() const { return output_queue_; }
 
  protected:
-  void stopImpl();
-
   NodeId findRoom(const ObjectSearchInput::Ptr& input,
                   ObjectSearchOutput::Ptr& output) const;
 
@@ -95,9 +95,15 @@ class ObjectSearchModule : public Module {
   std::atomic<bool> should_shutdown_{false};
 
   DynamicSceneGraph::Ptr scene_graph_;
-  CosSimSearch::Ptr cos_sim_search_;
+  Search::Ptr cos_sim_search_;
   InputQueue<ObjectSearchInput::Ptr>::Ptr input_queue_;
   InputQueue<ObjectSearchOutput::Ptr>::Ptr output_queue_;
+
+ private:
+  void stopImpl();
+  inline static const auto registration_ =
+      config::RegistrationWithConfig<ObjectSearchModule, ObjectSearchModule, Config>(
+          "ObjectSearchModule");
 };
 
 void declare_config(ObjectSearchModule::Config& config);

@@ -2,6 +2,25 @@
 
 namespace hydra {
 
+void declare_config(CosSimSearch::Config& config) {
+  using namespace config;
+  name("CosSimSearch::Config");
+  {
+    NameSpace ns("room");
+    field(config.room.prob_threshold, "prob_threshold");
+    field(config.room.normalize_similarities, "normalize_similarities");
+    field(config.room.use_softmax, "use_softmax");
+    field(config.room.use_mean, "use_mean");
+  }
+  {
+    NameSpace ns("object");
+    field(config.object.prob_threshold, "prob_threshold");
+    field(config.object.normalize_similarities, "normalize_similarities");
+    field(config.object.use_softmax, "use_softmax");
+    field(config.object.use_mean, "use_mean");
+  }
+}
+
 CosSimSearch::CosSimSearch(const Config& config) : config(config) {}
 
 CosSimSearch::~CosSimSearch() {}
@@ -31,7 +50,7 @@ bool CosSimSearch::searchRoom(
   if (config.room.use_softmax) {
     softmax(sims, probs, config.room.normalize_similarities);
   } else {
-    normalize(sims);
+    normalize(sims, probs);
   }
   result = std::distance(probs.begin(), std::max_element(probs.begin(), probs.end()));
   return result > config.room.prob_threshold;
@@ -52,7 +71,7 @@ bool CosSimSearch::searchObject(const Eigen::VectorXf& text_object_embedding,
   if (config.object.use_softmax) {
     softmax(sims, probs, config.object.normalize_similarities);
   } else {
-    normalize(sims);
+    normalize(sims, probs);
   }
   for (size_t i = 0; i < probs.size(); ++i) {
     if (probs[i] > config.object.prob_threshold) {
@@ -93,11 +112,13 @@ void CosSimSearch::softmax(const std::vector<float>& sims,
   }
 }
 
-void CosSimSearch::normalize(std::vector<float>& sims) const {
+void CosSimSearch::normalize(const std::vector<float>& sims,
+                             std::vector<float>& probs) const {
   float min_value = *std::min_element(sims.begin(), sims.end());
   float max_value = *std::max_element(sims.begin(), sims.end());
+  probs.resize(sims.size());
   for (size_t i = 0; i < sims.size(); ++i) {
-    sims[i] = (sims[i] - min_value) / (max_value - min_value);
+    probs[i] = (sims[i] - min_value) / (max_value - min_value);
   }
 }
 

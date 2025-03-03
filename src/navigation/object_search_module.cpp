@@ -4,10 +4,13 @@ namespace hydra {
 
 void declare_config(ObjectSearchModule::Config& config) {
   using namespace config;
-  name("ObjectSearchConfig");
+  name("ObjectSearchConfig::Config");
+  config.search.setOptional();
+  field(config.search, "search");
 }
 
-ObjectSearchModule::ObjectSearchModule(const Config& config) : config(config) {
+ObjectSearchModule::ObjectSearchModule(const Config& config)
+    : config(config), cos_sim_search_(config.search.create()) {
   input_queue_.reset(new InputQueue<ObjectSearchInput::Ptr>());
   output_queue_.reset(new InputQueue<ObjectSearchOutput::Ptr>());
 }

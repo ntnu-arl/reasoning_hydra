@@ -9,11 +9,12 @@
 #include <numeric>
 #include <vector>
 
+#include "hydra/navigation/search.h"
+
 namespace hydra {
 
-class CosSimSearch {
+class CosSimSearch : public Search {
  public:
-  using Ptr = std::unique_ptr<CosSimSearch>;
   struct Config {
     struct Entity {
       float prob_threshold = 0.5;
@@ -21,8 +22,8 @@ class CosSimSearch {
       bool use_softmax = true;
       bool use_mean = false;
     };
-    Entity room;
-    Entity object;
+    Entity room = Entity();
+    Entity object = Entity();
   } const config;
 
   explicit CosSimSearch(const Config& config);
@@ -30,10 +31,10 @@ class CosSimSearch {
 
   bool searchRoom(const Eigen::VectorXf& text_room_embedding,
                   const std::vector<std::vector<Eigen::VectorXf>>& room_embeddings,
-                  size_t& result) const;
+                  size_t& result) const override;
   bool searchObject(const Eigen::VectorXf& text_object_embedding,
                     const std::vector<Eigen::VectorXf>& object_embeddings,
-                    std::vector<size_t>& result) const;
+                    std::vector<size_t>& result) const override;
 
  protected:
   float cosSim(const Eigen::VectorXf& a,
@@ -43,7 +44,13 @@ class CosSimSearch {
                std::vector<float>& probs,
                bool normalize = true) const;
 
-  void normalize(std::vector<float>& sims) const;
+ private:
+  inline static const auto registration =
+      config::RegistrationWithConfig<Search, CosSimSearch, Config>("CosSimSearch");
+
+  void normalize(const std::vector<float>& sims, std::vector<float>& probs) const;
 };
+
+void declare_config(CosSimSearch::Config& config);
 
 }  // namespace hydra
