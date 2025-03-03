@@ -134,26 +134,29 @@ void mergeEdges(DynamicSceneGraph& graph,
       continue;
     }
 
-    auto edge = graph.getEdge(old_node_id, target_id).info->clone();
-    edge->setNewId(old_node_id, new_node_id);
-    if (graph.hasEdge(new_node_id, target_id)) {
-      auto new_edge = graph.getEdge(new_node_id, target_id).info->clone();
-      new_edge->merge(*edge);
-      graph.setEdgeAttributes(new_node_id, target_id, std::move(new_edge));
-    } else {
-      graph.insertEdge(new_node_id, target_id, std::move(edge));
-    }
+    if (graph.hasEdge(old_node_id, target_id)) {
+      auto edge = graph.getEdge(old_node_id, target_id).info->clone();
+      edge->setNewId(old_node_id, new_node_id);
+      if (graph.hasEdge(new_node_id, target_id)) {
+        auto new_edge = graph.getEdge(new_node_id, target_id).info->clone();
+        new_edge->merge(*edge);
+        graph.setEdgeAttributes(new_node_id, target_id, std::move(new_edge));
+      } else {
+        graph.insertEdge(new_node_id, target_id, std::move(edge));
+      }
 
-    graph.removeEdge(old_node_id, target_id);
+      graph.removeEdge(old_node_id, target_id);
+    }
     active_edges[old_node_id].erase(target_id);
     active_edges[target_id].erase(old_node_id);
-    active_edges[target_id].insert(new_node_id);
-    if (active_edges.count(new_node_id)) {
-      active_edges[new_node_id].insert(target_id);
-    } else {
-      active_edges[new_node_id] = {target_id};
+    if (graph.hasEdge(target_id, new_node_id)) {
+      active_edges[target_id].insert(new_node_id);
+      if (active_edges.count(new_node_id)) {
+        active_edges[new_node_id].insert(target_id);
+      } else {
+        active_edges[new_node_id] = {target_id};
+      }
     }
   }
 }
-
 }  // namespace hydra
