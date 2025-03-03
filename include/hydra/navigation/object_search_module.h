@@ -36,6 +36,7 @@ struct ObjectSearchInput {
   std::vector<ObjectFeature> text_object_embedding;
   ObjectFeature text_room_embedding;
   std::string room;
+  std::string prompt;
 };
 
 struct ObjectSearchOutput {
@@ -51,6 +52,7 @@ struct ObjectSearchOutput {
   };
   std::vector<ObjectRelationship> objects;
   std::string room;
+  std::string prompt;
 };
 
 class ObjectSearchModule : public Module {

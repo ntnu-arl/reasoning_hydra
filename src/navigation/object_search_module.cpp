@@ -63,6 +63,7 @@ void ObjectSearchModule::spin() {
 void ObjectSearchModule::spinOnce(const ObjectSearchInput::Ptr& input) {
   std::lock_guard<std::mutex> lock(mutex_);
   ObjectSearchOutput::Ptr output = std::make_shared<ObjectSearchOutput>();
+  output->prompt = input->prompt;
   NodeId room_id = findRoom(input, output);
   if (input->room.empty()) {
     LOG(ERROR) << "Room not found!";
