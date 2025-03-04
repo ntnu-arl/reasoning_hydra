@@ -173,6 +173,11 @@ bool ObjectSearchModule::findObjects(const ObjectSearchInput::Ptr& input,
           ObjectSearchOutput::ObjectRelationship::ObjectFeature object_feature;
           object_feature.object1 = object_relationship.id;
           object_feature.object2 = edge;
+          object_feature.object1_label = scene_graph_->getNode(object_relationship.id)
+                                             .attributes<SemanticNodeAttributes>()
+                                             .name;
+          object_feature.object2_label =
+              scene_graph_->getNode(edge).attributes<SemanticNodeAttributes>().name;
           object_feature.feature = scene_graph_->getEdge(object_relationship.id, edge)
                                        .attributes<EdgeAttributes>()
                                        .feature(object_relationship.id);

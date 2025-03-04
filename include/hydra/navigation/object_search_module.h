@@ -46,6 +46,8 @@ struct ObjectSearchOutput {
     struct ObjectFeature {
       spark_dsg::NodeId object1;
       spark_dsg::NodeId object2;
+      std::string object1_label;
+      std::string object2_label;
       Eigen::MatrixXf feature;
     };
     std::vector<ObjectFeature> relationships;
