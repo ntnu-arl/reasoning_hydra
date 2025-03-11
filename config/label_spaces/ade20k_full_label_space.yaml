@@ -246,7 +246,7 @@ label_names:
   - {label: 135, name: vase, name_descriptive: a vase}
   - {label: 136, name: traffic, name_descriptive: a traffic signal}
   - {label: 137, name: tray, name_descriptive: a tray}
-  - {label: 138, name: ashcan, name_descriptive: a trashcan}
+  - {label: 138, name: trashcan, name_descriptive: a trashcan}
   - {label: 139, name: fan, name_descriptive: a fan}
   - {label: 140, name: pier, name_descriptive: a pier}
   - {label: 141, name: crt, name_descriptive: a crt screen}
