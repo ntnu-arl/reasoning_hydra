@@ -65,7 +65,7 @@ void ObjectSearchModule::spinOnce(const ObjectSearchInput::Ptr& input) {
   ObjectSearchOutput::Ptr output = std::make_shared<ObjectSearchOutput>();
   output->prompt = input->prompt;
   NodeId room_id = findRoom(input, output);
-  if (input->room.empty()) {
+  if (output->room.empty()) {
     LOG(ERROR) << "Room not found!";
     return;
   }

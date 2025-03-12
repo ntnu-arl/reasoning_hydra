@@ -53,7 +53,7 @@ bool CosSimSearch::searchRoom(
     normalize(sims, probs);
   }
   result = std::distance(probs.begin(), std::max_element(probs.begin(), probs.end()));
-  return result > config.room.prob_threshold;
+  return probs[result] > config.room.prob_threshold;
 }
 
 bool CosSimSearch::searchObject(const Eigen::VectorXf& text_object_embedding,
