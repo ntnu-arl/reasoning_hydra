@@ -166,6 +166,9 @@ bool ObjectSearchModule::findObjects(const ObjectSearchInput::Ptr& input,
     if (cos_sim_search_->searchObject(
             Eigen::VectorXf(object_text_feature.data), object_embeddings, results)) {
       for (const auto& result : results) {
+        if (edges_in_room.count(objects_in_room[result]) == 0) {
+          continue;
+        }
         ObjectSearchOutput::ObjectRelationship object_relationship;
         object_relationship.id = objects_in_room[result];
         for (const auto& edge : edges_in_room[object_relationship.id]) {
