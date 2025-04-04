@@ -232,10 +232,12 @@ Clusters findClusters(const MeshSegmenter::Config& config,
       if (delta.hasPanopticIDs()) {
         const auto panoptic_id = delta.panoptic_ids_updates[local_idx];
         if (panoptic_id) {
-          cluster_panoptic_ids[panoptic_id.value()]++;
-          if (cluster_panoptic_ids[panoptic_id.value()] > max_panoptic_count) {
-            max_panoptic_count = cluster_panoptic_ids[panoptic_id.value()];
-            max_panoptic_id = panoptic_id.value();
+          if (panoptic_id.value() > 0) {
+            cluster_panoptic_ids[panoptic_id.value()]++;
+            if (cluster_panoptic_ids[panoptic_id.value()] > max_panoptic_count) {
+              max_panoptic_count = cluster_panoptic_ids[panoptic_id.value()];
+              max_panoptic_id = panoptic_id.value();
+            }
           }
         }
       }
