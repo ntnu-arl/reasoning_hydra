@@ -1,0 +1,13 @@
+---
+search:
+  type: CosSimSearch
+  room:
+    prob_threshold: 0.6
+    normalize_similarities: true
+    use_softmax: true
+    use_mean: false
+  object:
+    prob_threshold: 0.7
+    normalize_similarities: true
+    use_softmax: false
+    use_mean: false

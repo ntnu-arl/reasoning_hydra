@@ -36,7 +36,10 @@
 #include <config_utilities/virtual_config.h>
 
 #include <atomic>
+#include <memory>
+#include <string>
 #include <thread>
+#include <vector>
 
 #include "hydra/common/input_queue.h"
 #include "hydra/common/module.h"
@@ -50,6 +53,13 @@ struct PoseStatus {
   Eigen::Quaterniond target_R_source;
   Eigen::Vector3d target_p_source;
   operator bool() const { return is_valid; }
+
+  Eigen::Matrix4d toMatrix() const {
+    Eigen::Matrix4d T = Eigen::Matrix4d::Identity();
+    T.block<3, 3>(0, 0) = target_R_source.toRotationMatrix();
+    T.block<3, 1>(0, 3) = target_p_source;
+    return T;
+  }
 };
 
 class InputModule : public Module {

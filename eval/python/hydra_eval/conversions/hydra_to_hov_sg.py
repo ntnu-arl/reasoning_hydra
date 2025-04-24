@@ -213,7 +213,11 @@ def main(input_file: Path, output_file: Path, colormap_path: Path):
                     bb_center + bb_dims / 2 * np.array([-1, -1, -1]),
                 ]
             )
-            node.embedding = torch.tensor(node_data["attributes"]["semantic_feature"])
+            node.embedding = (
+                torch.tensor(node_data["attributes"]["semantic_feature"])
+                if node_data["attributes"]["semantic_feature"] is not None
+                else None
+            )
             node.pcd = o3d.geometry.PointCloud()
             node.pcd.points = o3d.utility.Vector3dVector(
                 points[node_data["attributes"]["mesh_connections"]]

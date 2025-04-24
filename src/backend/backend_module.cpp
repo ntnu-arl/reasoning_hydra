@@ -212,8 +212,10 @@ void BackendModule::save(const LogSetup& log_setup) {
   const auto& prefix = GlobalInfo::instance().getRobotPrefix();
   if (deformation_graph_->hasPrefixPoses(prefix.key)) {
     const auto optimized_path = getOptimizedTrajectory(prefix.id);
-    std::string csv_name = pgmo_path + "/traj_pgmo.csv";
-    saveTrajectory(optimized_path, timestamps_, csv_name);
+    if (optimized_path.size() == timestamps_.size()) {
+      std::string csv_name = pgmo_path + "/traj_pgmo.csv";
+      saveTrajectory(optimized_path, timestamps_, csv_name);
+    }
   }
 
   const auto mesh = private_dsg_->graph->mesh();
