@@ -91,4 +91,16 @@ struct CloudInputPacket : public SensorInputPacket {
   cv::Mat labels;
 };
 
+struct EnhancedCloudInputPacket : public CloudInputPacket {
+  using Ptr = std::shared_ptr<EnhancedCloudInputPacket>;
+  explicit EnhancedCloudInputPacket(uint64_t stamp, size_t sensor_id);
+
+  bool fillInputData(InputData& msg) const override;
+
+  std::optional<cv::Mat> features_mask;
+  std::optional<std::unordered_map<uint16_t, Eigen::VectorXf>> semantic_features;
+  std::optional<Eigen::VectorXf> image_feature;
+  std::optional<PairHashMap> relations;
+};
+
 }  // namespace hydra
