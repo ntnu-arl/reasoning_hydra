@@ -60,6 +60,17 @@ struct PoseStatus {
     T.block<3, 1>(0, 3) = target_p_source;
     return T;
   }
+
+  std::string toString() const {
+    return "Valid: " + std::to_string(is_valid) + "\n" + "Rotation: [" +
+           std::to_string(target_R_source.x()) + ", " +
+           std::to_string(target_R_source.y()) + ", " +
+           std::to_string(target_R_source.z()) + ", " +
+           std::to_string(target_R_source.w()) + "]\n" + "Translation: [" +
+           std::to_string(target_p_source.x()) + ", " +
+           std::to_string(target_p_source.y()) + ", " +
+           std::to_string(target_p_source.z()) + "]\n";
+  }
 };
 
 class InputModule : public Module {

@@ -31,6 +31,13 @@ class CameraLidarFusion : public Sensor {
     float fx = -1.0;
     /// Camera focal length (y-axis)
     float fy = -1.0;
+    // Distortion parameters
+    float k1 = 0.0;
+    float k2 = 0.0;
+    float k3 = 0.0;
+    float k4 = 0.0;
+    /// Undistort flag
+    bool undistort = false;
   };
 
   explicit CameraLidarFusion(const Config& config);

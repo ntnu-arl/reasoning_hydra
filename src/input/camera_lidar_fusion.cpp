@@ -12,6 +12,11 @@ void declare_config(CameraLidarFusion::Config& config) {
   field(config.cy, "cy", "px");
   field(config.fx, "fx", "px");
   field(config.fy, "fy", "px");
+  field(config.k1, "k1", "px");
+  field(config.k2, "k2", "px");
+  field(config.k3, "k3", "px");
+  field(config.k4, "k4", "px");
+  field(config.undistort, "undistort");
 
   check(config.width, GT, 0, "width");
   check(config.height, GT, 0, "height");
@@ -56,16 +61,26 @@ bool CameraLidarFusion::finalizeRepresentations(InputData& input,
     return false;
   }
 
-  // TODO(nathan) check that input is normalized
-
-  if (input.vertex_map.size() != input.label_image.size()) {
-    LOG(ERROR) << "label input size does not match pointcloud!";
+  if (!input.label_image.empty() && input.label_image.type() != CV_32SC1) {
+    LOG(ERROR) << "label_image must be CV_8UC3!";
+    return false;
+  }
+  if (!input.color_image.empty() && input.color_image.type() != CV_8UC3) {
+    LOG(ERROR) << "color_image must be CV_8UC3!";
     return false;
   }
 
-  if (!input.color_image.empty() &&
-      input.vertex_map.size() != input.color_image.size()) {
-    LOG(ERROR) << "color input size does not match pointcloud!";
+  // TODO(nathan) check that input is normalized
+
+  if (!input.label_image.empty() && (input.label_image.rows != input.vertex_map.rows ||
+                                     input.label_image.cols != input.vertex_map.cols)) {
+    LOG(ERROR) << "color input dimensions do not match pointcloud!";
+    return false;
+  }
+
+  if (!input.color_image.empty() && (input.color_image.rows != input.vertex_map.rows ||
+                                     input.color_image.cols != input.vertex_map.cols)) {
+    LOG(ERROR) << "color input dimensions do not match pointcloud!";
     return false;
   }
 
@@ -79,51 +94,46 @@ bool CameraLidarFusion::finalizeRepresentations(InputData& input,
   input.max_range = std::numeric_limits<float>::lowest();
 
   bool has_panoptic = input.features_mask.has_value();
-  input.range_image = cv::Mat(config_.height, config_.width, CV_32FC1, 0.0f);
-  cv::Mat labels(config_.height, config_.width, CV_32SC1, -1);
-  cv::Mat color(config_.height, config_.width, CV_8UC3);
-  color = 0;
+  cv::Size size(config_.width, config_.height);
+  input.range_image = cv::Mat::zeros(size, CV_32FC1);
+  cv::Mat labels = -cv::Mat::ones(size, CV_32SC1);
+  cv::Mat colors = cv::Mat::zeros(size, CV_8UC3);
+
+  if (has_panoptic && (*input.features_mask).type() != CV_16UC1) {
+    LOG(ERROR) << "features_mask must be CV_16UC1!";
+    return false;
+  }
   cv::Mat panoptic;
   if (has_panoptic) {
-    panoptic = cv::Mat(config_.height, config_.width, CV_16UC1, 0);
+    panoptic = cv::Mat::zeros(size, CV_16UC1);
   }
 
-  auto point_iter = input.vertex_map.begin<cv::Vec3f>();
-  auto label_iter = input.label_image.begin<int32_t>();
-  auto color_iter = input.color_image.begin<cv::Vec3b>();
   size_t num_invalid = 0;
-  size_t panoptic_index = 0;
+  for (int row = 0; row < input.vertex_map.rows; ++row) {
+    for (int col = 0; col < input.vertex_map.cols; ++col) {
+      int u, v;
+      const auto& p = input.vertex_map.at<cv::Vec3f>(row, col);
+      Eigen::Vector3f p_C(p[0], p[1], p[2]);
+      if (input.points_in_world_frame) {
+        p_C = sensor_T_world * p_C;
+      }
 
-  while (point_iter != input.vertex_map.end<cv::Vec3f>()) {
-    int u, v;
-    const auto& p = *point_iter;
-    Eigen::Vector3f p_C(p[0], p[1], p[2]);
-    if (input.points_in_world_frame) {
-      p_C = sensor_T_world * p_C;
+      if (!projectPointToImagePlane(p_C, u, v)) {
+        ++num_invalid;
+        continue;
+      }
+
+      const auto range_m = p_C.norm();
+      input.min_range = std::min(input.min_range, range_m);
+      input.max_range = std::max(input.max_range, range_m);
+
+      input.range_image.at<float>(v, u) = p_C.norm();
+      labels.at<int32_t>(v, u) = input.label_image.at<int32_t>(row, col);
+      colors.at<cv::Vec3b>(v, u) = input.color_image.at<cv::Vec3b>(row, col);
+      if (has_panoptic) {
+        panoptic.at<uint16_t>(v, u) = (*input.features_mask).at<uint16_t>(row, col);
+      }
     }
-
-    if (!projectPointToImagePlane(p_C, u, v)) {
-      ++num_invalid;
-      ++point_iter;
-      ++label_iter;
-      ++panoptic_index;
-      continue;
-    }
-
-    const auto range_m = p_C.norm();
-    input.min_range = std::min(input.min_range, range_m);
-    input.max_range = std::max(input.max_range, range_m);
-
-    input.range_image.at<float>(v, u) = p_C.norm();
-    labels.at<int32_t>(v, u) = *label_iter;
-    color.at<cv::Vec3b>(v, u) = *color_iter;
-    if (has_panoptic) {
-      panoptic.at<uint16_t>(v, u) = (*input.features_mask).at<uint16_t>(panoptic_index);
-    }
-
-    ++point_iter;
-    ++label_iter;
-    ++panoptic_index;
   }
 
   size_t total_lidar = input.vertex_map.rows * input.vertex_map.cols;
@@ -131,7 +141,7 @@ bool CameraLidarFusion::finalizeRepresentations(InputData& input,
   VLOG(5) << "Converted lidar points! invalid: " << num_invalid << " / " << total_lidar
           << " (percent: " << percent_invalid << ")";
   input.label_image = labels;
-  input.color_image = color;
+  input.color_image = colors;
   input.features_mask = panoptic;
   return true;
 }
@@ -146,15 +156,31 @@ bool CameraLidarFusion::projectPointToImagePlane(const Eigen::Vector3f& p_C,
   // all points are considered valid as long as the are contained in the image plane
   // with bounds [0, w] x [0, h]
   u = p_C.x() * config_.fx / p_C.z() + config_.cx;
-  if (u > config_.width || u < 0) {
+  if (u >= config_.width || u < 0) {
     return false;
   }
 
   v = p_C.y() * config_.fy / p_C.z() + config_.cy;
-  if (v > config_.height || v < 0) {
+  if (v >= config_.height || v < 0) {
     return false;
   }
 
+  // Apply distortion
+  if (!config_.undistort) {
+    return true;
+  }
+  float r2 = (p_C.x() * p_C.x() + p_C.y() * p_C.y()) / (p_C.z() * p_C.z());
+  float distortion_factor =
+      (1 + config_.k1 * r2 + config_.k2 * r2 * r2 + config_.k3 * r2 * r2 * r2 +
+       config_.k4 * r2 * r2 * r2 * r2);
+  u *= distortion_factor;
+  v *= distortion_factor;
+  if (u >= config_.width || u < 0) {
+    return false;
+  }
+  if (v >= config_.height || v < 0) {
+    return false;
+  }
   return true;
 }
 

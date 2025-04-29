@@ -62,8 +62,11 @@ InterpolationWeights InterpolatorNearest::computeWeights(float u,
       weights.v >= img.rows) {
     return weights;
   }
-
-  weights.valid = true;
+  if (img.at<float>(weights.v, weights.u) <= 0.f) {
+    weights.valid = false;
+  } else {
+    weights.valid = true;
+  }
   return weights;
 }
 

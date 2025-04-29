@@ -109,7 +109,7 @@ void InputModule::dataSpin() {
       const auto curr_time = packet->timestamp_ns;
       VLOG(2) << "[Hydra Input] popped input @ " << curr_time << " [ns]";
 
-      const auto odom_T_body = getBodyPose(curr_time);
+      const auto odom_T_body = getBodyPose(packet->timestamp_ns);
       if (!odom_T_body) {
         LOG(WARNING) << "[Hydra Input] dropping input @ " << curr_time
                      << " [ns] due to missing pose";
@@ -117,7 +117,7 @@ void InputModule::dataSpin() {
       }
 
       InputPacket::Ptr input(new InputPacket());
-      input->timestamp_ns = curr_time;
+      input->timestamp_ns = packet->timestamp_ns;
       input->sensor_input = packet;
       input->world_t_body = odom_T_body.target_p_source;
       input->world_R_body = odom_T_body.target_R_source;
