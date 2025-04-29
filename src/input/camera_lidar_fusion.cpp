@@ -29,29 +29,57 @@ void declare_config(CameraLidarFusion::Config& config) {
 }
 
 CameraLidarFusion::CameraLidarFusion(const Config& config)
-    : Sensor(config), config_(config::checkValid(config)) {
+    : Sensor(config),
+      config_(config::checkValid(config)),
+      width_(config_.horizontal_fov / config_.horizontal_resolution),
+      height_(config_.vertical_fov / config_.vertical_resolution),
+      vertical_fov_rad_(config_.vertical_fov * M_PI / 180.0f),
+      vertical_fov_top_rad_(config_.vertical_fov_top * M_PI / 180.0f),
+      horizontal_fov_rad_(config_.horizontal_fov * M_PI / 180.0f) {
   // Pre-compute the view frustum (top, right, bottom, left, plane normals).
-  const auto scale_factor = config_.fx / config_.fy;
-  Eigen::Vector3f p1(-config_.cx, -config_.cy * scale_factor, config_.fx);
-  Eigen::Vector3f p2(
-      config_.width - config_.cx, -config_.cy * scale_factor, config_.fx);
-  view_frustum_.row(0) = p1.cross(p2).normalized();
+  // compute upper phi limit and associated z at unit focal distance
+  const auto phi_up =
+      config_.is_asymmetric ? vertical_fov_top_rad_ : vertical_fov_rad_ / 2.0f;
+  const auto z_up = std::tan(phi_up);
+  // left upper x right upper corner
+  top_frustum_normal_ = Eigen::Vector3f(1.0f, 1.0f, z_up)
+                            .cross(Eigen::Vector3f(1.0, -1.0f, z_up))
+                            .normalized();
 
-  p1 = Eigen::Vector3f(config_.width - config_.cx,
-                       (config_.height - config_.cy) * scale_factor,
-                       config_.fx);
-  view_frustum_.row(1) = p2.cross(p1).normalized();
+  // compute lower phi limit and associated z at unit focal distance
+  const auto phi_down = config_.is_asymmetric
+                            ? vertical_fov_top_rad_ - vertical_fov_rad_
+                            : -vertical_fov_rad_ / 2.0f;
+  const auto z_down = std::tan(phi_down);
+  // right lower x left lower corner
+  bottom_frustum_normal_ = Eigen::Vector3f(1.0f, -1.0f, z_down)
+                               .cross(Eigen::Vector3f(1.0, 1.0f, z_down))
+                               .normalized();
 
-  p2 = Eigen::Vector3f(
-      -config_.cx, (config_.height - config_.cy) * scale_factor, config_.fx);
-  view_frustum_.row(2) = p1.cross(p2).normalized();
-
-  p1 = Eigen::Vector3f(-config_.cx, -config_.cy * scale_factor, config_.fx);
-  view_frustum_.row(3) = p2.cross(p1).normalized();
+  const auto half_fov = horizontal_fov_rad_ / 2.0f;
+  // compute left theta extent and flip if greater than 90 degrees
+  const auto theta_left = half_fov >= M_PI / 2.0f ? M_PI - half_fov : half_fov;
+  // flip associated unit focal length if required and compute actual coordinates
+  const auto x = half_fov >= M_PI / 2.0f ? -1.0f : 1.0f;
+  const auto y_left = std::tan(theta_left);
+  // left lower x left upper
+  left_frustum_normal_ = Eigen::Vector3f(x, y_left, -1.0f)
+                             .cross(Eigen::Vector3f(x, y_left, 1.0f))
+                             .normalized();
+  // right upper x right lower
+  right_frustum_normal_ = Eigen::Vector3f(x, -y_left, 1.0f)
+                              .cross(Eigen::Vector3f(x, -y_left, -1.0f))
+                              .normalized();
 }
 
 float CameraLidarFusion::computeRayDensity(float voxel_size, float depth) const {
-  return config_.fx * config_.fy * std::pow(voxel_size / depth, 2.f);
+  // we want rays per meter... we can do this by computing a virtual focal length
+  // compute focal lengths based on percent of spherical image inside 90 degree FOV
+  // focal_length = (dim / 2) / tan(fov / 2) and tan(fov / 2) = 1
+  const auto virtual_fx = (width_ * 90.0 / config_.horizontal_fov) / 2.0;
+  const auto virtual_fy = (height_ * 90.0 / config_.vertical_fov) / 2.0;
+  const auto voxel_density = voxel_size / depth;
+  return virtual_fx * virtual_fy * voxel_density * voxel_density;
 }
 
 bool CameraLidarFusion::finalizeRepresentations(InputData& input,
@@ -94,7 +122,7 @@ bool CameraLidarFusion::finalizeRepresentations(InputData& input,
   input.max_range = std::numeric_limits<float>::lowest();
 
   bool has_panoptic = input.features_mask.has_value();
-  cv::Size size(config_.width, config_.height);
+  cv::Size size(width_, height_);
   input.range_image = cv::Mat::zeros(size, CV_32FC1);
   cv::Mat labels = -cv::Mat::ones(size, CV_32SC1);
   cv::Mat colors = cv::Mat::zeros(size, CV_8UC3);
@@ -122,12 +150,19 @@ bool CameraLidarFusion::finalizeRepresentations(InputData& input,
         ++num_invalid;
         continue;
       }
-
+      int u_img, v_img;
+      if (!projectPointToCameraPlane(p_C, u_img, v_img)) {
+        ++num_invalid;
+        continue;
+      }
+      if (!input.valid[row][col]) {
+        ++num_invalid;
+        continue;
+      }
       const auto range_m = p_C.norm();
       input.min_range = std::min(input.min_range, range_m);
       input.max_range = std::max(input.max_range, range_m);
-
-      input.range_image.at<float>(v, u) = p_C.norm();
+      input.range_image.at<float>(v, u) = range_m;
       labels.at<int32_t>(v, u) = input.label_image.at<int32_t>(row, col);
       colors.at<cv::Vec3b>(v, u) = input.color_image.at<cv::Vec3b>(row, col);
       if (has_panoptic) {
@@ -149,6 +184,61 @@ bool CameraLidarFusion::finalizeRepresentations(InputData& input,
 bool CameraLidarFusion::projectPointToImagePlane(const Eigen::Vector3f& p_C,
                                                  float& u,
                                                  float& v) const {
+  if (p_C.norm() <= config_.min_range) {
+    return false;
+  }
+
+  // map lidar point to [0, w] x [0, h]
+  // assumes forward-left-up and fov center aligned with x-axis for a spherical model
+  const auto bearing = p_C.normalized();
+  const auto phi = std::asin(bearing.z());
+  const auto theta = std::atan2(bearing.y(), bearing.x());
+
+  if (config_.is_asymmetric) {
+    // phi is [-pi/2, pi/2], ratio is [1, 0], maps to [height, 0]
+    const auto vertical_ratio = (vertical_fov_top_rad_ - phi) / vertical_fov_rad_;
+    v = height_ * vertical_ratio;
+  } else {
+    // phi is [-pi/2, pi/2], ratio is [1, 0], maps to [height, 0]
+    const auto vertical_ratio = (vertical_fov_rad_ / 2.0f - phi) / vertical_fov_rad_;
+    v = height_ * vertical_ratio;
+  }
+
+  if (v < 0.0f || v > height_) {
+    return false;
+  }
+
+  const auto h_ratio = (horizontal_fov_rad_ / 2.0f - theta) / horizontal_fov_rad_;
+  u = width_ * h_ratio;
+  if (u < 0.0f || u > width_) {
+    return false;
+  }
+
+  return true;
+}
+
+bool CameraLidarFusion::projectPointToImagePlane(const Eigen::Vector3f& p_C,
+                                                 int& u,
+                                                 int& v) const {
+  float temp_u = -1.0f;
+  float temp_v = -1.0f;
+  if (!projectPointToImagePlane(p_C, temp_u, temp_v)) {
+    return false;
+  }
+
+  // assumption is pixel indices point to top left corner
+  u = std::floor(temp_u);
+  v = std::floor(temp_v);
+  if (u >= width_ || u < 0 || v >= height_ || v < 0) {
+    return false;
+  }
+
+  return true;
+}
+
+bool CameraLidarFusion::projectPointToCameraPlane(const Eigen::Vector3f& p_C,
+                                                  float& u,
+                                                  float& v) const {
   if (p_C.z() <= 0.f) {
     return false;
   }
@@ -184,12 +274,12 @@ bool CameraLidarFusion::projectPointToImagePlane(const Eigen::Vector3f& p_C,
   return true;
 }
 
-bool CameraLidarFusion::projectPointToImagePlane(const Eigen::Vector3f& p_C,
-                                                 int& u,
-                                                 int& v) const {
+bool CameraLidarFusion::projectPointToCameraPlane(const Eigen::Vector3f& p_C,
+                                                  int& u,
+                                                  int& v) const {
   float u_float = -1.0f;
   float v_float = -1.0f;
-  if (!projectPointToImagePlane(p_C, u_float, v_float)) {
+  if (!projectPointToCameraPlane(p_C, u_float, v_float)) {
     return false;
   }
 
@@ -204,21 +294,29 @@ bool CameraLidarFusion::projectPointToImagePlane(const Eigen::Vector3f& p_C,
 
 bool CameraLidarFusion::pointIsInViewFrustum(const Eigen::Vector3f& point_C,
                                              float inflation_distance) const {
-  if (point_C.z() < -inflation_distance) {
-    return false;
-  }
-
   if (point_C.norm() > config_.max_range + inflation_distance) {
     return false;
   }
 
-  for (int i = 0; i < view_frustum_.rows(); ++i) {
-    if (point_C.dot(view_frustum_.row(i)) < -inflation_distance) {
-      return false;
-    }
+  double radius_2d = std::sqrt(point_C.x() * point_C.x() + point_C.y() * point_C.y());
+  Eigen::Vector3f point_C_2d(radius_2d, 0, point_C.z());
+  if (point_C_2d.dot(top_frustum_normal_) < -inflation_distance) {
+    return false;
   }
 
-  return true;
+  if (point_C_2d.dot(bottom_frustum_normal_) < -inflation_distance) {
+    return false;
+  }
+
+  const auto left_prod = point_C.dot(left_frustum_normal_);
+  const auto right_prod = point_C.dot(right_frustum_normal_);
+  if (horizontal_fov_rad_ <= M_PI) {
+    // normal camera or half-plane case
+    return left_prod >= -inflation_distance && right_prod >= -inflation_distance;
+  }
+
+  // check to make sure that we're not in the exluded region
+  return !(left_prod <= -inflation_distance && right_prod <= -inflation_distance);
 }
 
 }  // namespace hydra

@@ -50,6 +50,8 @@
 
 #include <Eigen/Geometry>
 #include <limits>
+#include <memory>
+#include <string>
 #include <vector>
 
 namespace hydra {
@@ -127,6 +129,17 @@ class Sensor {
   struct Config {
     double min_range = 0.0f;
     double max_range = std::numeric_limits<double>::infinity();
+    double horizontal_resolution = -1;
+    /// Lidar resolution (points/degrees)
+    double vertical_resolution = -1;
+    /// Horizontal field of view (degrees)
+    double horizontal_fov = 360.0;
+    /// vertical field of view (degrees)
+    double vertical_fov = -1.0;
+    /// is vertical fov asymmetric?
+    bool is_asymmetric = false;
+    /// top offset of vertical field of view (degrees)
+    double vertical_fov_top = -1.0;
     config::VirtualConfig<SensorExtrinsics> extrinsics;
   } const config;
 

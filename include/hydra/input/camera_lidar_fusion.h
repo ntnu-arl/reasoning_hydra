@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "hydra/input/input_data.h"
+#include "hydra/input/lidar.h"
 #include "hydra/input/sensor.h"
 #include "hydra/input/sensor_utilities.h"
 
@@ -59,14 +60,26 @@ class CameraLidarFusion : public Sensor {
                                 int& u,
                                 int& v) const override;
 
+  bool projectPointToCameraPlane(const Eigen::Vector3f& p_C, int& u, int& v) const;
+
+  bool projectPointToCameraPlane(const Eigen::Vector3f& p_C, float& u, float& v) const;
+
   bool pointIsInViewFrustum(const Eigen::Vector3f& point_C,
                             float inflation_distance = 0.0f) const override;
 
  private:
   const Config config_;
+  const int width_;
+  const int height_;
+  const float vertical_fov_rad_;
+  const float vertical_fov_top_rad_;
+  const float horizontal_fov_rad_;
 
   // Pre-computed stored values.
-  Eigen::Matrix<float, 4, 3> view_frustum_;  // Top, right, bottom, left plane normals.
+  Eigen::Vector3f top_frustum_normal_;
+  Eigen::Vector3f bottom_frustum_normal_;
+  Eigen::Vector3f left_frustum_normal_;
+  Eigen::Vector3f right_frustum_normal_;
 
   inline static const auto registration_ =
       config::RegistrationWithConfig<Sensor,

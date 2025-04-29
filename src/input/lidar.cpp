@@ -45,25 +45,6 @@
 
 namespace hydra {
 
-void declare_config(Lidar::Config& config) {
-  using namespace config;
-  name("Lidar");
-  base<Sensor::Config>(config);
-  field(config.horizontal_resolution, "horizontal_resolution", "points/degrees");
-  field(config.vertical_resolution, "vertical_resolution", "points/degrees");
-  field(config.horizontal_fov, "horizontal_fov", "degrees");
-  field(config.vertical_fov, "vertical_fov", "degrees");
-  field(config.is_asymmetric, "is_asymmetric");
-  if (config.is_asymmetric) {
-    field(config.vertical_fov_top, "vertical_fov_top", "degrees");
-  }
-
-  check(config.horizontal_resolution, GT, 0, "horizontal_resolution");
-  check(config.vertical_resolution, GT, 0, "vertical_resolution");
-  check(config.horizontal_fov, GT, 0, "horizontal_fov");
-  check(config.vertical_fov, GT, 0, "vertical_fov");
-}
-
 Lidar::Lidar(const Config& config)
     : Sensor(config),
       config_(config::checkValid(config)),
