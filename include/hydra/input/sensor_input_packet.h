@@ -102,6 +102,7 @@ struct EnhancedCloudInputPacket : public SensorInputPacket {
   cv::Mat colors;
   cv::Mat labels;
   std::vector<std::vector<bool>> valid;
+  Eigen::Isometry3d cam_T_lidar;
   std::optional<cv::Mat> features_mask;
   std::optional<std::unordered_map<uint16_t, Eigen::VectorXf>> semantic_features;
   std::optional<Eigen::VectorXf> image_feature;

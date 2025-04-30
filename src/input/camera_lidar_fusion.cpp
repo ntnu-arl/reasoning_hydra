@@ -115,8 +115,18 @@ bool CameraLidarFusion::finalizeRepresentations(InputData& input,
   }
 
   if (force_world_frame && !input.points_in_world_frame) {
-    LOG(ERROR) << "force_world_frame is not supported for CameraLidarFusion!";
-    return false;
+    const auto world_T_sensor = input.getSensorPose().cast<float>();
+    auto point_iter = input.vertex_map.begin<cv::Vec3f>();
+    while (point_iter != input.vertex_map.end<cv::Vec3f>()) {
+      auto& p = *point_iter;
+      Eigen::Vector3f p_S(p[0], p[1], p[2]);
+      const auto p_W = world_T_sensor * p_S;
+      p[0] = p_W.x();
+      p[1] = p_W.y();
+      p[2] = p_W.z();
+    }
+
+    input.points_in_world_frame = true;
   }
 
   const auto lidar_T_world = input.getSensorPose().cast<float>().inverse();
@@ -155,20 +165,26 @@ bool CameraLidarFusion::finalizeRepresentations(InputData& input,
         p_C(1) = p_C_h.y();
         p_C(2) = p_C_h.z();
         p_L = lidar_T_world * p_L;
+      } else {
+        if (!input.sensor1_T_sensor2) {
+          LOG(ERROR) << "sensor1_T_sensor2 required to convert points!";
+          return false;
+        }
+        p_C = (*input.sensor1_T_sensor2).cast<float>() * p_C;
       }
       int u_img, v_img;
       if (!projectPointToCameraPlane(p_C, u_img, v_img)) {
         ++num_invalid;
         continue;
       }
-      pcl::PointXYZRGB debug_point;
-      debug_point.x = p[0];
-      debug_point.y = p[1];
-      debug_point.z = p[2];
-      debug_point.r = input.color_image.at<cv::Vec3b>(row, col)[2];
-      debug_point.g = input.color_image.at<cv::Vec3b>(row, col)[1];
-      debug_point.b = input.color_image.at<cv::Vec3b>(row, col)[0];
-      debug_pointcloud->points.push_back(debug_point);
+      // pcl::PointXYZRGB debug_point;
+      // debug_point.x = p[0];
+      // debug_point.y = p[1];
+      // debug_point.z = p[2];
+      // debug_point.r = input.color_image.at<cv::Vec3b>(row, col)[2];
+      // debug_point.g = input.color_image.at<cv::Vec3b>(row, col)[1];
+      // debug_point.b = input.color_image.at<cv::Vec3b>(row, col)[0];
+      // debug_pointcloud->points.push_back(debug_point);
       if (!input.valid[row][col]) {
         ++num_invalid;
         continue;

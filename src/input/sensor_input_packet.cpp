@@ -106,6 +106,7 @@ bool EnhancedCloudInputPacket::fillInputData(InputData& msg) const {
   msg.image_feature = image_feature;
   msg.relations = relations;
   msg.valid = valid;
+  msg.sensor1_T_sensor2 = cam_T_lidar;
 
   return true;
 }

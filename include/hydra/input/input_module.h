@@ -82,6 +82,10 @@ struct PoseStatus {
   inline operator Eigen::Isometry3d() const {
     return Eigen::Translation3d(target_p_source) * target_R_source;
   }
+
+  Eigen::Isometry3d toIsometry() const {
+    return Eigen::Translation3d(target_p_source) * target_R_source;
+  }
 };
 
 class InputModule : public Module {
