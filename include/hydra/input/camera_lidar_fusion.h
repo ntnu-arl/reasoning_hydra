@@ -2,11 +2,18 @@
 
 #include <config_utilities/config_utilities.h>
 #include <config_utilities/factory.h>
+#include <pcl/io/ply_io.h>
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
 
+#include <memory>
+#include <opencv2/opencv.hpp>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
 #include "hydra/input/input_data.h"
+#include "hydra/input/input_module.h"
 #include "hydra/input/lidar.h"
 #include "hydra/input/sensor.h"
 #include "hydra/input/sensor_utilities.h"
@@ -39,6 +46,10 @@ class CameraLidarFusion : public Sensor {
     float k4 = 0.0;
     /// Undistort flag
     bool undistort = false;
+    /// Quaternion rotation
+    Eigen::Quaterniond cam2body_rotation = Eigen::Quaterniond::Identity();
+    /// Translation vector
+    Eigen::Vector3d cam2body_translation = Eigen::Vector3d::Zero();
   };
 
   explicit CameraLidarFusion(const Config& config);
@@ -80,6 +91,8 @@ class CameraLidarFusion : public Sensor {
   Eigen::Vector3f bottom_frustum_normal_;
   Eigen::Vector3f left_frustum_normal_;
   Eigen::Vector3f right_frustum_normal_;
+
+  std::unique_ptr<PoseStatus> cam_extrinsics_;
 
   inline static const auto registration_ =
       config::RegistrationWithConfig<Sensor,

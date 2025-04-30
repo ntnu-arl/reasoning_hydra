@@ -36,6 +36,8 @@ CameraLidarFusion::CameraLidarFusion(const Config& config)
       vertical_fov_rad_(config_.vertical_fov * M_PI / 180.0f),
       vertical_fov_top_rad_(config_.vertical_fov_top * M_PI / 180.0f),
       horizontal_fov_rad_(config_.horizontal_fov * M_PI / 180.0f) {
+  cam_extrinsics_ = std::make_unique<PoseStatus>(config_.cam2body_rotation,
+                                                 config_.cam2body_translation);
   // Pre-compute the view frustum (top, right, bottom, left, plane normals).
   // compute upper phi limit and associated z at unit focal distance
   const auto phi_up =
@@ -117,7 +119,9 @@ bool CameraLidarFusion::finalizeRepresentations(InputData& input,
     return false;
   }
 
-  const auto sensor_T_world = input.getSensorPose().cast<float>().inverse();
+  const auto lidar_T_world = input.getSensorPose().cast<float>().inverse();
+  const auto cam_T_world =
+      (input.world_T_body * (*cam_extrinsics_)).cast<float>().inverse();
   input.min_range = std::numeric_limits<float>::max();
   input.max_range = std::numeric_limits<float>::lowest();
 
@@ -137,29 +141,43 @@ bool CameraLidarFusion::finalizeRepresentations(InputData& input,
   }
 
   size_t num_invalid = 0;
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr debug_pointcloud(
+      new pcl::PointCloud<pcl::PointXYZRGB>());
   for (int row = 0; row < input.vertex_map.rows; ++row) {
     for (int col = 0; col < input.vertex_map.cols; ++col) {
       int u, v;
       const auto& p = input.vertex_map.at<cv::Vec3f>(row, col);
       Eigen::Vector3f p_C(p[0], p[1], p[2]);
+      Eigen::Vector3f p_L(p[0], p[1], p[2]);
       if (input.points_in_world_frame) {
-        p_C = sensor_T_world * p_C;
-      }
-
-      if (!projectPointToImagePlane(p_C, u, v)) {
-        ++num_invalid;
-        continue;
+        Eigen::Vector4f p_C_h = cam_T_world * Eigen::Vector4f(p[0], p[1], p[2], 1.0f);
+        p_C(0) = p_C_h.x();
+        p_C(1) = p_C_h.y();
+        p_C(2) = p_C_h.z();
+        p_L = lidar_T_world * p_L;
       }
       int u_img, v_img;
       if (!projectPointToCameraPlane(p_C, u_img, v_img)) {
         ++num_invalid;
         continue;
       }
+      pcl::PointXYZRGB debug_point;
+      debug_point.x = p[0];
+      debug_point.y = p[1];
+      debug_point.z = p[2];
+      debug_point.r = input.color_image.at<cv::Vec3b>(row, col)[2];
+      debug_point.g = input.color_image.at<cv::Vec3b>(row, col)[1];
+      debug_point.b = input.color_image.at<cv::Vec3b>(row, col)[0];
+      debug_pointcloud->points.push_back(debug_point);
       if (!input.valid[row][col]) {
         ++num_invalid;
         continue;
       }
-      const auto range_m = p_C.norm();
+      if (!projectPointToImagePlane(p_L, u, v)) {
+        ++num_invalid;
+        continue;
+      }
+      const auto range_m = p_L.norm();
       input.min_range = std::min(input.min_range, range_m);
       input.max_range = std::max(input.max_range, range_m);
       input.range_image.at<float>(v, u) = range_m;
@@ -178,6 +196,22 @@ bool CameraLidarFusion::finalizeRepresentations(InputData& input,
   input.label_image = labels;
   input.color_image = colors;
   input.features_mask = panoptic;
+  // pcl::io::savePLYFile("/home/albert/Desktop/pts/" +
+  // std::to_string(input.timestamp_ns) +
+  //                    "_debug.ply", *debug_pointcloud);
+
+  // cv::Mat scaled_img;
+  // float scale = 255.0f / (config.max_range - config_.min_range);
+  // input.range_image.convertTo(scaled_img, CV_8U, scale, -config.min_range * scale);
+  // cv::Mat shifted, output_img;
+  // shifted = input.label_image + 1;
+  // shifted.convertTo(output_img, CV_16U);
+  // cv::imwrite("/home/albert/Desktop/pts/" + std::to_string(input.timestamp_ns) +
+  // "_range_image.png", scaled_img); cv::imwrite("/home/albert/Desktop/pts/" +
+  // std::to_string(input.timestamp_ns) + "_colors.png", input.color_image);
+  // cv::imwrite("/home/albert/Desktop/pts/" + std::to_string(input.timestamp_ns) +
+  // "_labels.png", output_img);
+
   return true;
 }
 
@@ -318,5 +352,4 @@ bool CameraLidarFusion::pointIsInViewFrustum(const Eigen::Vector3f& point_C,
   // check to make sure that we're not in the exluded region
   return !(left_prod <= -inflation_distance && right_prod <= -inflation_distance);
 }
-
 }  // namespace hydra

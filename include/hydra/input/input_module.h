@@ -49,9 +49,16 @@
 namespace hydra {
 
 struct PoseStatus {
-  bool is_valid = false;
   Eigen::Quaterniond target_R_source;
   Eigen::Vector3d target_p_source;
+  bool is_valid = false;
+  PoseStatus() = default;
+  explicit PoseStatus(const bool& valid)
+      : target_R_source(Eigen::Quaterniond::Identity()),
+        target_p_source(Eigen::Vector3d::Zero()),
+        is_valid(valid) {}
+  PoseStatus(const Eigen::Quaterniond& R, const Eigen::Vector3d& p)
+      : target_R_source(R), target_p_source(p), is_valid(true) {}
   operator bool() const { return is_valid; }
 
   Eigen::Matrix4d toMatrix() const {
@@ -70,6 +77,10 @@ struct PoseStatus {
            std::to_string(target_p_source.x()) + ", " +
            std::to_string(target_p_source.y()) + ", " +
            std::to_string(target_p_source.z()) + "]\n";
+  }
+
+  inline operator Eigen::Isometry3d() const {
+    return Eigen::Translation3d(target_p_source) * target_R_source;
   }
 };
 
