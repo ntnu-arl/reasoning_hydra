@@ -379,7 +379,7 @@ void FrontendModule::updateMesh(const ReconstructionOutput& input) {
     ScopedTimer timer("frontend/mesh_update", input.timestamp_ns, true, 1, false);
     last_mesh_update_->updateMesh(*dsg_->graph->mesh());
     invalidateMeshEdges(*last_mesh_update_);
-    // kimera_pgmo::WriteMesh("/home/albert/Desktop/meshes/dsg_mesh_" +
+    // kimera_pgmo::WriteMesh("/home/albert/Desktop/pts/dsg_mesh_" +
     //                     std::to_string(input.timestamp_ns) + ".ply",
     //                     *dsg_->graph->mesh());
   }  // end timing scope

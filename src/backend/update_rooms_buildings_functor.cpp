@@ -114,6 +114,9 @@ void UpdateRoomsFunctor::computeRoomFeatures(
                                   .attributes<AgentNodeAttributes>();
   current_agent_attrs.image_feature = *feature_vector;
 
+  if (!new_rooms) {
+    return;
+  }
   std::unordered_map<NodeId, std::vector<Eigen::VectorXf>> room_features;
   room_features.reserve(new_rooms->numNodes());
 

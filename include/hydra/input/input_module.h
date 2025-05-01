@@ -36,7 +36,10 @@
 #include <config_utilities/virtual_config.h>
 
 #include <atomic>
+#include <memory>
+#include <string>
 #include <thread>
+#include <vector>
 
 #include "hydra/common/input_queue.h"
 #include "hydra/common/module.h"
@@ -46,10 +49,43 @@
 namespace hydra {
 
 struct PoseStatus {
-  bool is_valid = false;
   Eigen::Quaterniond target_R_source;
   Eigen::Vector3d target_p_source;
+  bool is_valid = false;
+  PoseStatus() = default;
+  explicit PoseStatus(const bool& valid)
+      : target_R_source(Eigen::Quaterniond::Identity()),
+        target_p_source(Eigen::Vector3d::Zero()),
+        is_valid(valid) {}
+  PoseStatus(const Eigen::Quaterniond& R, const Eigen::Vector3d& p)
+      : target_R_source(R), target_p_source(p), is_valid(true) {}
   operator bool() const { return is_valid; }
+
+  Eigen::Matrix4d toMatrix() const {
+    Eigen::Matrix4d T = Eigen::Matrix4d::Identity();
+    T.block<3, 3>(0, 0) = target_R_source.toRotationMatrix();
+    T.block<3, 1>(0, 3) = target_p_source;
+    return T;
+  }
+
+  std::string toString() const {
+    return "Valid: " + std::to_string(is_valid) + "\n" + "Rotation: [" +
+           std::to_string(target_R_source.x()) + ", " +
+           std::to_string(target_R_source.y()) + ", " +
+           std::to_string(target_R_source.z()) + ", " +
+           std::to_string(target_R_source.w()) + "]\n" + "Translation: [" +
+           std::to_string(target_p_source.x()) + ", " +
+           std::to_string(target_p_source.y()) + ", " +
+           std::to_string(target_p_source.z()) + "]\n";
+  }
+
+  inline operator Eigen::Isometry3d() const {
+    return Eigen::Translation3d(target_p_source) * target_R_source;
+  }
+
+  Eigen::Isometry3d toIsometry() const {
+    return Eigen::Translation3d(target_p_source) * target_R_source;
+  }
 };
 
 class InputModule : public Module {

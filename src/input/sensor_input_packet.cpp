@@ -87,4 +87,27 @@ bool CloudInputPacket::fillInputData(InputData& msg) const {
   return true;
 }
 
+EnhancedCloudInputPacket::EnhancedCloudInputPacket(uint64_t stamp, size_t sensor_id)
+    : SensorInputPacket(stamp, sensor_id) {}
+
+bool EnhancedCloudInputPacket::fillInputData(InputData& msg) const {
+  if (points.empty() || (labels.empty() && colors.empty())) {
+    LOG(ERROR) << "Missing required pointcloud.";
+    return false;
+  }
+
+  msg.timestamp_ns = timestamp_ns;
+  msg.vertex_map = points;
+  msg.points_in_world_frame = in_world_frame;
+  msg.color_image = colors;
+  msg.label_image = labels;
+  msg.features_mask = features_mask;
+  msg.semantic_features = semantic_features;
+  msg.image_feature = image_feature;
+  msg.relations = relations;
+  msg.valid = valid;
+  msg.sensor1_T_sensor2 = cam_T_lidar;
+
+  return true;
+}
 }  // namespace hydra

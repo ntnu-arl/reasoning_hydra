@@ -126,6 +126,14 @@ void declare_config(Sensor::Config& conf) {
   name("Sensor");
   field(conf.min_range, "min_range", "m");
   field(conf.max_range, "max_range", "m");
+  field(conf.horizontal_resolution, "horizontal_resolution", "points/degrees");
+  field(conf.vertical_resolution, "vertical_resolution", "points/degrees");
+  field(conf.horizontal_fov, "horizontal_fov", "degrees");
+  field(conf.vertical_fov, "vertical_fov", "degrees");
+  field(conf.is_asymmetric, "is_asymmetric");
+  if (conf.is_asymmetric) {
+    field(conf.vertical_fov_top, "vertical_fov_top", "degrees");
+  }
   field(conf.extrinsics, "extrinsics");
   check(conf.min_range, GT, 0.0, "min_range");
   checkCondition(conf.max_range > conf.min_range,

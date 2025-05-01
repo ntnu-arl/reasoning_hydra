@@ -125,35 +125,37 @@ void mergeEdges(DynamicSceneGraph& graph,
                 const NodeId& old_node_id,
                 const NodeId& new_node_id,
                 std::unordered_map<NodeId, std::set<NodeId>>& active_edges) {
-  for (const auto& target_id : active_edges[old_node_id]) {
+  auto it = active_edges[old_node_id].begin();
+  while (it != active_edges[old_node_id].end()) {
+    auto target_id = *it;                      // Copy the target ID
+    it = active_edges[old_node_id].erase(it);  // Erase and get next valid iterator
+
     // Case when the old node is merged with the target node
     if (target_id == new_node_id) {
       graph.removeEdge(old_node_id, target_id);
-      active_edges[old_node_id].erase(target_id);
       active_edges[target_id].erase(old_node_id);
       continue;
     }
 
-    auto edge = graph.getEdge(old_node_id, target_id).info->clone();
-    edge->setNewId(old_node_id, new_node_id);
-    if (graph.hasEdge(new_node_id, target_id)) {
-      auto new_edge = graph.getEdge(new_node_id, target_id).info->clone();
-      new_edge->merge(*edge);
-      graph.setEdgeAttributes(new_node_id, target_id, std::move(new_edge));
-    } else {
-      graph.insertEdge(new_node_id, target_id, std::move(edge));
+    if (graph.hasEdge(old_node_id, target_id)) {
+      auto edge = graph.getEdge(old_node_id, target_id).info->clone();
+      edge->setNewId(old_node_id, new_node_id);
+      if (graph.hasEdge(new_node_id, target_id)) {
+        auto new_edge = graph.getEdge(new_node_id, target_id).info->clone();
+        new_edge->merge(*edge);
+        graph.setEdgeAttributes(new_node_id, target_id, std::move(new_edge));
+      } else {
+        graph.insertEdge(new_node_id, target_id, std::move(edge));
+      }
+
+      graph.removeEdge(old_node_id, target_id);
     }
 
-    graph.removeEdge(old_node_id, target_id);
-    active_edges[old_node_id].erase(target_id);
     active_edges[target_id].erase(old_node_id);
-    active_edges[target_id].insert(new_node_id);
-    if (active_edges.count(new_node_id)) {
+    if (graph.hasEdge(target_id, new_node_id)) {
+      active_edges[target_id].insert(new_node_id);
       active_edges[new_node_id].insert(target_id);
-    } else {
-      active_edges[new_node_id] = {target_id};
     }
   }
 }
-
 }  // namespace hydra

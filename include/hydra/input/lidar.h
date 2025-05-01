@@ -51,22 +51,6 @@ namespace hydra {
  */
 class Lidar : public Sensor {
  public:
-  // Note: negative parameters are REQUIRED
-  struct Config : public Sensor::Config {
-    /// Lidar angular resolution (points/degrees)
-    double horizontal_resolution = -1;
-    /// Lidar resolution (points/degrees)
-    double vertical_resolution = -1;
-    /// Horizontal field of view (degrees)
-    double horizontal_fov = 360.0;
-    /// vertical field of view (degrees)
-    double vertical_fov = -1.0;
-    /// is vertical fov asymmetric?
-    bool is_asymmetric = false;
-    /// top offset of vertical field of view (degrees)
-    double vertical_fov_top = -1.0;
-  };
-
   explicit Lidar(const Config& config);
 
   virtual ~Lidar() = default;
@@ -93,7 +77,7 @@ class Lidar : public Sensor {
                             float inflation_distance = 0.0f) const override;
 
  private:
-  const Config config_;
+  const Sensor::Config config_;
   const int width_;
   const int height_;
   const float vertical_fov_rad_;

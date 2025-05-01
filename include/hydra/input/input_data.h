@@ -45,6 +45,9 @@ struct InputData {
   // Label image for semantic input data.
   cv::Mat label_image;
 
+  // Valid pixels mask.
+  std::vector<std::vector<bool>> valid;
+
   // Semantic features mask.
   std::optional<cv::Mat> features_mask;
 
@@ -56,6 +59,9 @@ struct InputData {
 
   // Semantic relations features
   std::optional<PairHashMap> relations;
+
+  // Sensor to sensor isometry transform.
+  std::optional<Eigen::Isometry3d> sensor1_T_sensor2;
 
   // 3D points of the range image in sensor or world frame.
   cv::Mat vertex_map;

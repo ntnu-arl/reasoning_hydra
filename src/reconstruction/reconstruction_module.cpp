@@ -337,7 +337,8 @@ BlockIndices ReconstructionModule::findBlocksToArchive(
   const auto& tsdf = map_->getTsdfLayer();
   BlockIndices to_archive;
   for (const auto& block : tsdf) {
-    if ((center - block.position()).norm() < config.dense_representation_radius_m) {
+    const auto block_pos = block.position();
+    if ((center - block_pos).norm() < config.dense_representation_radius_m) {
       continue;
     }
 
