@@ -4,7 +4,10 @@ dynamic_labels: [12, 126]
 invalid_labels: []
 object_labels:
   - 7
+  - 8
   - 10
+  - 12
+  - 14
   - 15
   - 17
   - 18
