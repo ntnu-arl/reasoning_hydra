@@ -78,5 +78,4 @@ void BackendModuleStatus::reset() {
   trajectory_len = 0;
   num_merges_undone = 0;
 }
-
 }  // namespace hydra

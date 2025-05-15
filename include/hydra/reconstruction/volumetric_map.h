@@ -47,6 +47,9 @@
 // purposes notwithstanding any copyright notation herein.
 #pragma once
 
+#include <memory>
+#include <string>
+
 #include "hydra/reconstruction/voxel_types.h"
 
 namespace hydra {
@@ -97,6 +100,12 @@ class VolumetricMap {
     int voxels_per_side = 16;  // TODO(nathan) fix int
     /// TSDF truncation distance.
     float truncation_distance = 0.3f;
+    // Flag to enable point cloud layer.
+    bool with_pointcloud = false;
+    /// Point cloud voxel size.
+    float pointcloud_voxel_size = 0.05f;
+    /// Point cloud number of blocks per side.
+    int pointcloud_voxels_per_side = 16;
   } const config;
 
   explicit VolumetricMap(const Config& config,
@@ -106,7 +115,14 @@ class VolumetricMap {
 
   float blockSize() const { return config.voxel_size * config.voxels_per_side; }
 
+  float pointCloudBlockSize() const {
+    return config.pointcloud_voxel_size * config.pointcloud_voxels_per_side;
+  }
+  float pointCloudVoxelSize() const { return config.voxel_size; }
+
   virtual BlockTuple getBlock(const BlockIndex& index);
+
+  virtual BaseSemanticBlock::Ptr getPointCloudBlock(const BlockIndex& index);
 
   TsdfLayer& getTsdfLayer() { return tsdf_layer_; }
   const TsdfLayer& getTsdfLayer() const { return tsdf_layer_; }
@@ -120,7 +136,17 @@ class VolumetricMap {
   TrackingLayer* getTrackingLayer() { return tracking_layer_.get(); }
   const TrackingLayer* getTrackingLayer() const { return tracking_layer_.get(); }
 
+  BaseSemanticPointCloud* getBaseSemanticPointCloud() {
+    return base_semantic_pointcloud_.get();
+  }
+
+  const BaseSemanticPointCloud::Ptr getBaseSemanticPointCloudPtr() const {
+    return base_semantic_pointcloud_;
+  }
+
   bool hasSemantics() const { return semantic_layer_ != nullptr; }
+
+  bool hasPointCloud() const { return base_semantic_pointcloud_ != nullptr; }
 
   /**
    * @brief Allocate a block in all relevant layers of the map.
@@ -130,16 +156,28 @@ class VolumetricMap {
   virtual bool allocateBlock(const BlockIndex& index);
 
   /**
-   * @brief Allocate a set of blocks in all relevant layers of the map.
+   * @brief Allocate a set of blocks for the pointcloud.
    * @tparam BlockIndexIterable Type of the iterable containing block indices.
    * @param blocks Iterable containing the block indices to allocate.
    * @return List of block indices that were allocated.
    */
   BlockIndices allocateBlocks(const BlockIndices& blocks);
 
+  /**
+   * @brief Allocate a set of blocks for the pointcloud.
+   * @tparam BlockIndexIterable Type of the iterable containing block indices.
+   * @param blocks Iterable containing the block indices to allocate.
+   * @return List of block indices that were allocated.
+   */
+  BlockIndices allocatePointCloudBlocks(const BlockIndices& blocks);
+
   virtual void removeBlock(const BlockIndex& block);
 
+  virtual void removePointCloudBlock(const BlockIndex& block);
+
   void removeBlocks(const BlockIndices& blocks);
+
+  void removePointCloudBlocks(const BlockIndices& blocks);
 
   virtual std::string printStats() const;
 
@@ -160,6 +198,7 @@ class VolumetricMap {
   MeshLayer mesh_layer_;
   SemanticLayer::Ptr semantic_layer_;
   TrackingLayer::Ptr tracking_layer_;
+  BaseSemanticPointCloud::Ptr base_semantic_pointcloud_;
 };
 
 void declare_config(VolumetricMap::Config& config);

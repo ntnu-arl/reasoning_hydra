@@ -52,6 +52,7 @@
 #include "hydra/loop_closure/registration_solution.h"
 #include "hydra/odometry/pose_graph_tracker.h"
 #include "hydra/reasoning/reasoning_output.h"
+#include "hydra/reconstruction/volumetric_map.h"
 
 namespace hydra {
 
@@ -72,6 +73,14 @@ struct BackendInput {
   PoseGraphPacket agent_updates;
   kimera_pgmo::MeshDelta::Ptr mesh_update;
   std::optional<Eigen::VectorXf> feature_vector;
+
+  void setPointCloud(const BaseSemanticPointCloud::Ptr& pointcloud) {
+    pointcloud_ = pointcloud;
+  }
+  BaseSemanticPointCloud::Ptr getPointCloud() const { return pointcloud_; }
+
+ protected:
+  BaseSemanticPointCloud::Ptr pointcloud_;
 };
 
 struct BackendReasoningInput {

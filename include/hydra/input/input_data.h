@@ -1,5 +1,8 @@
 #pragma once
 
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
+
 #include <Eigen/Geometry>
 #include <limits>
 #include <memory>
@@ -44,6 +47,9 @@ struct InputData {
 
   // Label image for semantic input data.
   cv::Mat label_image;
+
+  // RGB label pointcloud.
+  pcl::PointCloud<pcl::PointXYZRGBL>::Ptr pointcloud;
 
   // Valid pixels mask.
   std::vector<std::vector<bool>> valid;

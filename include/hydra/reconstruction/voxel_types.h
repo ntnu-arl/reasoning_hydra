@@ -83,19 +83,23 @@ struct TsdfVoxel {
   Color color;
 };
 
-// Based on the semantic voxel from Kimera-Semantics
-struct SemanticVoxel {
+struct BaseSemanticVoxel {
   //! Current MLE semantic label
   uint32_t semantic_label = 0;
-  // TODO(nathan) top-K!
   //! Log-likelihood priors of each label
   Eigen::VectorXf semantic_likelihoods;
+  //! Whether or not the voxel has been initialized
+  bool empty = true;
+  //! Color
+  Color color;
+};
+
+// Based on the semantic voxel from Kimera-Semantics
+struct SemanticVoxel : public BaseSemanticVoxel {
   //! OpenVocabulary feature vector
   std::optional<Eigen::VectorXf> feature_vector;
   //! Number of observations
   uint32_t num_observations = 0;
-  //! Whether or not the voxel has been initialized
-  bool empty = true;
   //! Panoptic ID
   uint16_t panoptic_id = 0;
 };
@@ -160,11 +164,12 @@ struct TrackingBlock : public spatial_hash::VoxelBlock<TrackingVoxel> {
 };
 
 using SemanticBlock = spatial_hash::VoxelBlock<SemanticVoxel>;
+using BaseSemanticBlock = spatial_hash::VoxelBlock<BaseSemanticVoxel>;
 
 // Layer types.
 using TsdfLayer = spatial_hash::VoxelLayer<TsdfBlock>;
 using SemanticLayer = spatial_hash::VoxelLayer<SemanticBlock>;
 using MeshLayer = spatial_hash::BlockLayer<MeshBlock>;
 using TrackingLayer = spatial_hash::VoxelLayer<TrackingBlock>;
-
+using BaseSemanticPointCloud = spatial_hash::VoxelLayer<BaseSemanticBlock>;
 }  // namespace hydra

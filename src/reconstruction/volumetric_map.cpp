@@ -61,10 +61,15 @@ void declare_config(VolumetricMap::Config& config) {
   field(config.voxel_size, "voxel_size", "m");
   field(config.voxels_per_side, "voxels_per_side");
   field(config.truncation_distance, "truncation_distance", "m");
+  field(config.with_pointcloud, "with_pointcloud");
+  field(config.pointcloud_voxel_size, "pointcloud_voxel_size", "m");
+  field(config.pointcloud_voxels_per_side, "pointcloud_voxels_per_side");
 
   check(config.voxel_size, GT, 0, "voxel_size");
   check(config.voxels_per_side, GT, 0, "voxels_per_side");
   check(config.truncation_distance, GT, 0, "truncation_distance");
+  check(config.pointcloud_voxel_size, GT, 0, "pointcloud_voxel_size");
+  check(config.pointcloud_voxels_per_side, GT, 0, "pointcloud_voxels_per_side");
 }
 
 VolumetricMap::VolumetricMap(const Config& _config,
@@ -78,6 +83,10 @@ VolumetricMap::VolumetricMap(const Config& _config,
   }
   if (with_tracking) {
     tracking_layer_.reset(new TrackingLayer(config.voxel_size, config.voxels_per_side));
+  }
+  if (config.with_pointcloud) {
+    base_semantic_pointcloud_.reset(new BaseSemanticPointCloud(
+        config.pointcloud_voxel_size, config.pointcloud_voxels_per_side));
   }
 }
 
@@ -106,6 +115,19 @@ BlockIndices VolumetricMap::allocateBlocks(const BlockIndices& blocks) {
   return new_blocks;
 }
 
+BlockIndices VolumetricMap::allocatePointCloudBlocks(const BlockIndices& blocks) {
+  BlockIndices new_blocks;
+  if (base_semantic_pointcloud_) {
+    for (const auto& idx : blocks) {
+      if (!base_semantic_pointcloud_->hasBlock(idx)) {
+        base_semantic_pointcloud_->allocateBlock(idx);
+        new_blocks.push_back(idx);
+      }
+    }
+  }
+  return new_blocks;
+}
+
 void VolumetricMap::removeBlock(const BlockIndex& block_index) {
   tsdf_layer_.removeBlock(block_index);
   mesh_layer_.removeBlock(block_index);
@@ -117,9 +139,23 @@ void VolumetricMap::removeBlock(const BlockIndex& block_index) {
   }
 }
 
+void VolumetricMap::removePointCloudBlock(const BlockIndex& block_index) {
+  if (base_semantic_pointcloud_) {
+    base_semantic_pointcloud_->removeBlock(block_index);
+  }
+}
+
 void VolumetricMap::removeBlocks(const BlockIndices& blocks) {
   for (const auto& idx : blocks) {
     removeBlock(idx);
+  }
+}
+
+void VolumetricMap::removePointCloudBlocks(const BlockIndices& blocks) {
+  if (base_semantic_pointcloud_) {
+    for (const auto& idx : blocks) {
+      base_semantic_pointcloud_->removeBlock(idx);
+    }
   }
 }
 
@@ -147,6 +183,13 @@ VoxelTuple BlockTuple::getVoxels(const size_t linear_index) const {
     tuple.tracking = &tracking->getVoxel(linear_index);
   }
   return tuple;
+}
+
+BaseSemanticBlock::Ptr VolumetricMap::getPointCloudBlock(const BlockIndex& index) {
+  if (base_semantic_pointcloud_) {
+    return base_semantic_pointcloud_->getBlockPtr(index);
+  }
+  return nullptr;
 }
 
 void VolumetricMap::save(const std::string& filepath) const {
@@ -186,7 +229,7 @@ std::unique_ptr<VolumetricMap> VolumetricMap::load(const std::string& filepath) 
 
   const auto node = YAML::LoadFile(cpath);
   bool use_semantics = false;
-  if (node["has_semantics"] and node["has_semantics"].as<bool>()) {
+  if (node["has_semantics"] && node["has_semantics"].as<bool>()) {
     use_semantics = true;
   }
 

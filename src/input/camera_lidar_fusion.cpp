@@ -128,8 +128,8 @@ bool CameraLidarFusion::finalizeRepresentations(InputData& input,
 
     input.points_in_world_frame = true;
   }
-
-  const auto lidar_T_world = input.getSensorPose().cast<float>().inverse();
+  const auto world_T_lidar = input.getSensorPose().cast<float>();
+  const auto lidar_T_world = world_T_lidar.inverse();
   const auto cam_T_world =
       (input.world_T_body * (*cam_extrinsics_)).cast<float>().inverse();
   input.min_range = std::numeric_limits<float>::max();
@@ -140,6 +140,7 @@ bool CameraLidarFusion::finalizeRepresentations(InputData& input,
   input.range_image = cv::Mat::zeros(size, CV_32FC1);
   cv::Mat labels = -cv::Mat::ones(size, CV_32SC1);
   cv::Mat colors = cv::Mat::zeros(size, CV_8UC3);
+  input.pointcloud.reset(new pcl::PointCloud<pcl::PointXYZRGBL>());
 
   if (has_panoptic && (*input.features_mask).type() != CV_16UC1) {
     LOG(ERROR) << "features_mask must be CV_16UC1!";
@@ -185,6 +186,25 @@ bool CameraLidarFusion::finalizeRepresentations(InputData& input,
       // debug_point.g = input.color_image.at<cv::Vec3b>(row, col)[1];
       // debug_point.b = input.color_image.at<cv::Vec3b>(row, col)[0];
       // debug_pointcloud->points.push_back(debug_point);
+      // Pointcloud
+      pcl::PointXYZRGBL rgbl_point;
+      if (input.points_in_world_frame) {
+        rgbl_point.x = p[0];
+        rgbl_point.y = p[1];
+        rgbl_point.z = p[2];
+      } else {
+        Eigen::Vector4f p_W = world_T_lidar * Eigen::Vector4f(p[0], p[1], p[2], 1.0f);
+        rgbl_point.x = p_W.x();
+        rgbl_point.y = p_W.y();
+        rgbl_point.z = p_W.z();
+      }
+      rgbl_point.r = input.color_image.at<cv::Vec3b>(row, col)[2];
+      rgbl_point.g = input.color_image.at<cv::Vec3b>(row, col)[1];
+      rgbl_point.b = input.color_image.at<cv::Vec3b>(row, col)[0];
+      rgbl_point.label =
+          static_cast<uint32_t>(input.label_image.at<int32_t>(row, col) + 1);
+      input.pointcloud->points.push_back(rgbl_point);
+
       if (!input.valid[row][col]) {
         ++num_invalid;
         continue;

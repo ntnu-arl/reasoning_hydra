@@ -107,6 +107,8 @@ class ProjectiveIntegrator {
                     const InputData& data,
                     VolumetricMap& map) const;
 
+  void updatePointCloudBlocks(const InputData& data, VolumetricMap& map) const;
+
   /**
    * @brief Update the specified block in the map with the given data single-threaded.
    * @param block_index Index of block to update.

@@ -74,18 +74,33 @@ BlockIndices ProjectiveIntegrator::updateMap(const InputData& data,
   const auto body_T_sensor = data.getSensorPose().cast<float>();
   const auto block_indices = findBlocksInViewFrustum(
       data.getSensor(), body_T_sensor, map.blockSize(), data.min_range, data.max_range);
+  BlockIndices pointcloud_block_indices;
   BlockIndices new_blocks;
+  BlockIndices new_pointcloud_blocks;
   if (allocate_blocks) {
     new_blocks = map.allocateBlocks(block_indices);
+  }
+  if (map.hasPointCloud()) {
+    pointcloud_block_indices =
+        findBlocksInPointcloud(data.pointcloud, map.pointCloudBlockSize());
+    if (allocate_blocks) {
+      new_pointcloud_blocks = map.allocatePointCloudBlocks(pointcloud_block_indices);
+    }
   }
 
   VLOG(config.verbosity) << "Updating " << block_indices.size() << " blocks.";
   updateBlocks(block_indices, data, map);
+  updatePointCloudBlocks(data, map);
 
   // De-allocate blocks that were not updated.
   for (const auto& idx : new_blocks) {
     if (!tsdf.getBlock(idx).updated) {
       map.removeBlock(idx);
+    }
+  }
+  for (const auto& idx : new_pointcloud_blocks) {
+    if (!map.getPointCloudBlock(idx)->updated) {
+      map.removePointCloudBlock(idx);
     }
   }
   return block_indices;
@@ -110,6 +125,39 @@ void ProjectiveIntegrator::updateBlocks(const BlockIndices& block_indices,
 
   for (auto& thread : threads) {
     thread.get();
+  }
+}
+
+void ProjectiveIntegrator::updatePointCloudBlocks(const InputData& data,
+                                                  VolumetricMap& map) const {
+  // Update all voxels.
+  if (!semantic_integrator_) {
+    return;
+  }
+
+  for (size_t i = 0; i < data.pointcloud->size(); ++i) {
+    const auto& point = data.pointcloud->at(i);
+    if (point.label == 0) {
+      continue;
+    }
+    spatial_hash::Point point_eigen(point.x, point.y, point.z);
+    const auto block_index = spatial_hash::indexFromPoint<VoxelIndex>(
+        point_eigen, 1.f / map.pointCloudBlockSize());
+    // Get the requested blocks.
+    auto block = map.getPointCloudBlock(block_index);
+    if (!block) {
+      // Skip unallocated blocks.
+      continue;
+    }
+    auto& voxel = block->getVoxel(block->getVoxelIndex(point_eigen));
+
+    if (semantic_integrator_->isValidLabel(point.label - 1)) {
+      semantic_integrator_->updateLikelihoods(point.label - 1, voxel);
+      voxel.color.r = point.r;
+      voxel.color.g = point.g;
+      voxel.color.b = point.b;
+      block->updated = true;
+    }
   }
 }
 

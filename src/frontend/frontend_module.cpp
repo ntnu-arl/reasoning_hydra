@@ -315,7 +315,7 @@ void FrontendModule::spinOnce(const ReconstructionOutput::Ptr& msg) {
 
   backend_input_->mesh_update = last_mesh_update_;
   backend_input_->feature_vector = msg->sensor_data->image_feature;
-
+  backend_input_->setPointCloud(msg->getMapPointer()->getBaseSemanticPointCloudPtr());
   state_->backend_queue.push(backend_input_);
   if (state_->lcd_queue) {
     state_->lcd_queue->push(lcd_input_);

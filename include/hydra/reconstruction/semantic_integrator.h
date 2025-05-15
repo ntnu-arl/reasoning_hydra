@@ -66,6 +66,7 @@ struct SemanticIntegrator {
       const std::optional<Eigen::VectorXf>& semantic_feature_vector,
       const std::optional<uint16_t>& panoptic_id,
       SemanticVoxel& voxel) const = 0;
+  virtual void updateLikelihoods(uint32_t label, BaseSemanticVoxel& voxel) const = 0;
 };
 
 // Implementation based in part on Kimera-Semantics
@@ -86,6 +87,8 @@ class MLESemanticIntegrator : public SemanticIntegrator {
                          const std::optional<Eigen::VectorXf>& semantic_feature_vector,
                          const std::optional<uint16_t>& panoptic_id,
                          SemanticVoxel& voxel) const override;
+
+  void updateLikelihoods(uint32_t label, BaseSemanticVoxel& voxel) const override;
 
  protected:
   size_t total_labels_;

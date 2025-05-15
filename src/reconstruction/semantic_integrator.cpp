@@ -112,6 +112,16 @@ void MLESemanticIntegrator::updateLikelihoods(
   }
 }
 
+void MLESemanticIntegrator::updateLikelihoods(uint32_t label,
+                                              BaseSemanticVoxel& voxel) const {
+  if (voxel.empty) {
+    voxel.empty = false;
+    voxel.semantic_likelihoods.setConstant(total_labels_, init_likelihood_);
+  }
+  voxel.semantic_likelihoods += observation_likelihoods_.col(label);
+  voxel.semantic_likelihoods.maxCoeff(&voxel.semantic_label);
+}
+
 void declare_config(MLESemanticIntegrator::Config& config) {
   using namespace config;
   name("MLESemanticIntegrator::Config");
