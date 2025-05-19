@@ -1,0 +1,57 @@
+repositories:
+  catkin_simple:
+    type: git
+    url: https://github.com/catkin/catkin_simple.git
+    version: master
+  config_utilities:
+    type: git
+    url: git@github.com:MIT-SPARK/config_utilities.git
+    version: main
+  drivers/realsense-ros:
+    type: git
+    url: https://github.com/IntelRealSense/realsense-ros.git
+    version: ros1-legacy
+  hydra_ros:
+    type: git
+    url: git@github.com:ntnu-arl/hydra_ros.git
+    version: synergise/pcl_structure
+  kimera_pgmo:
+    type: git
+    url: git@github.com:ntnu-arl/kimera_pgmo.git
+    version: master
+  kimera_rpgo:
+    type: git
+    url: git@github.com:MIT-SPARK/Kimera-RPGO.git
+    version: master
+  mesh_rviz_plugins:
+    type: git
+    url: git@github.com:MIT-SPARK/mesh_rviz_plugins.git
+    version: master
+  pose_graph_tools:
+    type: git
+    url: git@github.com:MIT-SPARK/pose_graph_tools.git
+    version: master
+  reasoning_hydra:
+    type: git
+    url: git@github.com:ntnu-arl/reasoning_hydra.git
+    version: synergise/pcl_structure
+  reasoning_ros_wrapper:
+    type: git
+    url: git@github.com:ntnu-arl/reasoning_ros_wrapper.git
+    version: master
+  spark_dsg:
+    type: git
+    url: git@github.com:ntnu-arl/reasoning_Spark-DSG.git
+    version: master
+  spatial_hash:
+    type: git
+    url: git@github.com:MIT-SPARK/Spatial-Hash.git
+    version: main
+  teaser_plusplus:
+    type: git
+    url: git@github.com:MIT-SPARK/TEASER-plusplus.git
+    version: master
+  vision_opencv:
+    type: git
+    url: https://github.com/ros-perception/vision_opencv.git
+    version: noetic
