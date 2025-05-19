@@ -90,7 +90,9 @@ BlockIndices ProjectiveIntegrator::updateMap(const InputData& data,
 
   VLOG(config.verbosity) << "Updating " << block_indices.size() << " blocks.";
   updateBlocks(block_indices, data, map);
-  updatePointCloudBlocks(data, map);
+  if (map.hasPointCloud()) {
+    updatePointCloudBlocks(data, map);
+  }
 
   // De-allocate blocks that were not updated.
   for (const auto& idx : new_blocks) {

@@ -31,7 +31,7 @@ freespace_places:
   filter_ground: false
   gvd:
     max_distance_m: 4.5
-    min_distance_m: 0.2
+    min_distance_m: 0.04
     min_diff_m: 0.1
     min_weight: 1.0e-6
     positive_distance_only: true
