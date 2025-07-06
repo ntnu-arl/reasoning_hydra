@@ -28,15 +28,21 @@ namespace hydra {
 
 struct ObjectSearchInput {
   using Ptr = std::shared_ptr<ObjectSearchInput>;
+  std::string room;
+  std::string prompt;
   struct ObjectFeature {
     Eigen::MatrixXf data;
     int cols;
     int rows;
   };
+  struct ObjectsPtomptsPair {
+    size_t object_label_index;
+    size_t subject_label_index;
+    std::string prompt;
+  };
   std::vector<ObjectFeature> text_object_embedding;
   ObjectFeature text_room_embedding;
-  std::string room;
-  std::string prompt;
+  std::vector<ObjectsPtomptsPair> objects_prompt_pairs;
 };
 
 struct ObjectSearchOutput {
@@ -49,12 +55,13 @@ struct ObjectSearchOutput {
       std::string object1_label;
       std::string object2_label;
       Eigen::MatrixXf feature;
+      std::string prompt;
     };
     std::vector<ObjectFeature> relationships;
   };
   std::vector<ObjectRelationship> objects;
   std::string room;
-  std::string prompt;
+  std::string general_prompt;
 };
 
 class ObjectSearchModule : public Module {
@@ -87,13 +94,25 @@ class ObjectSearchModule : public Module {
   InputQueue<ObjectSearchOutput::Ptr>::Ptr outputQueue() const { return output_queue_; }
 
  protected:
-  NodeId findRoom(const ObjectSearchInput::Ptr& input,
-                  ObjectSearchOutput::Ptr& output) const;
+  std::optional<NodeId> findRoom(const ObjectSearchInput::Ptr& input,
+                                 ObjectSearchOutput::Ptr& output) const;
 
   bool findObjects(const ObjectSearchInput::Ptr& input,
                    ObjectSearchOutput::Ptr& output,
-                   const NodeId& chosen_room_id) const;
+                   const std::optional<NodeId>& chosen_room_id) const;
 
+  bool basicObjectSearch(const ObjectSearchInput::Ptr& input, 
+                         ObjectSearchOutput::Ptr& output,
+                         const std::vector<NodeId>& objects_in_room,
+                         const std::vector<Eigen::VectorXf>& object_embeddings,
+                         const std::unordered_map<NodeId, std::vector<NodeId>>& edges_in_room) const;
+  bool pairBasedObjectSearch(
+      const ObjectSearchInput::Ptr& input, 
+      ObjectSearchOutput::Ptr& output,
+      const std::vector<NodeId>& objects_in_room,
+      const std::vector<Eigen::VectorXf>& object_embeddings,
+      const std::unordered_map<NodeId, std::vector<NodeId>>& edges_in_room) const;
+      
   std::unique_ptr<std::thread> spin_thread_;
   std::mutex mutex_;
   std::atomic<bool> should_shutdown_{false};
