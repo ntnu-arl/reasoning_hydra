@@ -8,6 +8,6 @@ search:
     use_mean: false
   object:
     prob_threshold: 0.7
-    normalize_similarities: true
+    normalize_similarities: false
     use_softmax: false
     use_mean: false

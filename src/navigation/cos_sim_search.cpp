@@ -49,8 +49,10 @@ bool CosSimSearch::searchRoom(
   std::vector<float> probs;
   if (config.room.use_softmax) {
     softmax(sims, probs, config.room.normalize_similarities);
-  } else {
+  } else if (config.object.normalize_similarities){
     normalize(sims, probs);
+  } else {
+    probs = sims;
   }
   result = std::distance(probs.begin(), std::max_element(probs.begin(), probs.end()));
   return probs[result] > config.room.prob_threshold;
@@ -70,8 +72,10 @@ bool CosSimSearch::searchObject(const Eigen::VectorXf& text_object_embedding,
   std::vector<float> probs;
   if (config.object.use_softmax) {
     softmax(sims, probs, config.object.normalize_similarities);
-  } else {
+  } else if (config.object.normalize_similarities){
     normalize(sims, probs);
+  } else {
+    probs = sims;
   }
   for (size_t i = 0; i < probs.size(); ++i) {
     if (probs[i] > config.object.prob_threshold) {

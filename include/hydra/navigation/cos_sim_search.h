@@ -18,8 +18,9 @@ class CosSimSearch : public Search {
   struct Config {
     struct Entity {
       float prob_threshold = 0.5;
-      bool normalize_similarities = true;
-      bool use_softmax = true;
+      bool normalize_similarities = false;
+      bool use_softmax = false;
+      bool use_normalize = false;
       bool use_mean = false;
     };
     Entity room = Entity();
