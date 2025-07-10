@@ -234,7 +234,9 @@ bool ObjectSearchModule::pairBasedObjectSearch(
     if (cos_sim_search_->searchObject(
             Eigen::VectorXf(object_text_feature.data), object_embeddings, results)) {
       for (const auto& result : results) {
-        found_objects[i].push_back(objects_in_room[result]);
+        if (result < objects_in_room.size()) {
+          found_objects[i].push_back(objects_in_room[result]);
+        }
       }
     }
   }
