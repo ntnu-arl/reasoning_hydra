@@ -45,6 +45,7 @@ struct NavigationInput {
   std::vector<std::pair<NodeId, NodeId>> object_ids;
   std::vector<std::string> explanation;
   std::string method;
+  bool object_search = false;
 };
 
 using NavigationOutput = std::vector<NavigationPath>;
@@ -95,6 +96,15 @@ class NavigationModule : public Module {
                       const SceneGraphNode& agent_node,
                       const std::set<EdgeKey>& edges,
                       NavigationPath& output) const;
+
+  bool findObjectNavigation(const NodeId& obj1,
+                            const std::string& method,
+                            const SceneGraphLayer::Nodes& place_nodes,
+                            const SceneGraphLayer& object_layer,
+                            const SceneGraphNode& agent_node,
+                            const std::set<EdgeKey>& edges,
+                            NavigationPath& output) const;
+
 
   std::unique_ptr<std::thread> spin_thread_;
   std::mutex mutex_;

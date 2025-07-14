@@ -91,11 +91,18 @@ void NavigationModule::spinOnce(const NavigationInput::Ptr& input) {
   for (size_t i = 0; i < input->object_ids.size(); ++i) {
     const auto& [obj1, obj2] = input->object_ids[i];
     NavigationPath path;
-    if (!findNavigation(
-            obj1, obj2, method, place_nodes, object_layer, agent_node, edges, path)) {
-      continue;
+    if (input->object_search) {
+      if(!findObjectNavigation(obj1, method, place_nodes, object_layer, agent_node, edges, path)) {
+        continue;
+      }
+      path.explanation = "";
+    } else{
+      if (!findNavigation(
+              obj1, obj2, method, place_nodes, object_layer, agent_node, edges, path)) {
+        continue;
+      }
+      path.explanation = input->explanation[i];
     }
-    path.explanation = input->explanation[i];
     output.push_back(path);
   }
   if (output.empty()) {
@@ -180,6 +187,66 @@ bool NavigationModule::findNavigation(const NodeId& obj1,
   output.target_to_object = obj1_obj2_path_points;
   return true;
 }
+
+
+bool NavigationModule::findObjectNavigation(const NodeId& obj1,
+                                            const std::string& method,
+                                            const SceneGraphLayer::Nodes& place_nodes,
+                                            const SceneGraphLayer& object_layer,
+                                            const SceneGraphNode& agent_node,
+                                            const std::set<EdgeKey>& edges,
+                                            NavigationPath& output) const {
+  const auto& obj1_node = object_layer.findNode(obj1);
+  if (!obj1_node) {
+    LOG(ERROR) << "Object node not found!";
+    return false;
+  }
+  if (obj1_node->parents().empty()) {
+    LOG(ERROR) << "Object node has no parent!";
+    return false;
+  }
+  const auto& obj1_place = *obj1_node->parents().begin();
+  if (!place_nodes.count(obj1_place)) {
+    LOG(ERROR) << "Object place node not found!";
+    return false;
+  }
+
+  const auto& agent_place_id = agent_node.getParent();
+  if (!agent_place_id) {
+    LOG(ERROR) << "Agent node has no parent!";
+    return false;
+  }
+
+  if (!place_nodes.count(*agent_place_id)) {
+    LOG(ERROR) << "Agent place node not found!";
+    return false;
+  }
+
+  output.object_id = obj1;
+  output.target_id = obj1;
+  output.object_label = obj1_node->attributes<SemanticNodeAttributes>().name;
+  output.target_label = obj1_node->attributes<SemanticNodeAttributes>().name;
+  std::vector<NodeId> agent_obj1_path;
+  std::vector<Eigen::Vector3d> agent_obj1_path_points;
+  std::visit(
+      [&](auto&& func) {
+        return func(place_nodes,
+                    edges,
+                    *agent_place_id,
+                    obj1_place,
+                    agent_obj1_path,
+                    agent_obj1_path_points);
+      },
+      shortest_path_methods_.at(method));
+
+  agent_obj1_path_points.emplace(agent_obj1_path_points.begin(),
+                                 agent_node.attributes<NodeAttributes>().position);
+  agent_obj1_path_points.push_back(obj1_node->attributes<NodeAttributes>().position);
+
+  output.agent_to_target = agent_obj1_path_points;
+  return true;
+}
+
 
 void NavigationModule::setGraph(const DynamicSceneGraph::Ptr& scene_graph) {
   std::lock_guard<std::mutex> lock(mutex_);

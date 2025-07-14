@@ -30,6 +30,7 @@ struct ObjectSearchInput {
   using Ptr = std::shared_ptr<ObjectSearchInput>;
   std::string room;
   std::string prompt;
+  bool object_search;
   struct ObjectFeature {
     Eigen::MatrixXf data;
     int cols;
@@ -62,6 +63,7 @@ struct ObjectSearchOutput {
   std::vector<ObjectRelationship> objects;
   std::string room;
   std::string general_prompt;
+  bool object_search = false;
 };
 
 class ObjectSearchModule : public Module {
@@ -101,17 +103,24 @@ class ObjectSearchModule : public Module {
                    ObjectSearchOutput::Ptr& output,
                    const std::optional<NodeId>& chosen_room_id) const;
 
-  bool basicObjectSearch(const ObjectSearchInput::Ptr& input, 
-                         ObjectSearchOutput::Ptr& output,
-                         const std::vector<NodeId>& objects_in_room,
-                         const std::vector<Eigen::VectorXf>& object_embeddings,
-                         const std::unordered_map<NodeId, std::vector<NodeId>>& edges_in_room) const;
-  bool pairBasedObjectSearch(
+  bool basicObjectRelationshipsSearch(
       const ObjectSearchInput::Ptr& input, 
       ObjectSearchOutput::Ptr& output,
       const std::vector<NodeId>& objects_in_room,
       const std::vector<Eigen::VectorXf>& object_embeddings,
       const std::unordered_map<NodeId, std::vector<NodeId>>& edges_in_room) const;
+  bool pairBasedObjectRelationshipsSearch(
+      const ObjectSearchInput::Ptr& input, 
+      ObjectSearchOutput::Ptr& output,
+      const std::vector<NodeId>& objects_in_room,
+      const std::vector<Eigen::VectorXf>& object_embeddings,
+      const std::unordered_map<NodeId, std::vector<NodeId>>& edges_in_room) const;
+
+  bool basicObjectSearch(
+      const ObjectSearchInput::Ptr& input, 
+      ObjectSearchOutput::Ptr& output,
+      const std::vector<NodeId>& objects_in_room,
+      const std::vector<Eigen::VectorXf>& object_embeddings) const;
       
   std::unique_ptr<std::thread> spin_thread_;
   std::mutex mutex_;

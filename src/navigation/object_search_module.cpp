@@ -64,6 +64,7 @@ void ObjectSearchModule::spinOnce(const ObjectSearchInput::Ptr& input) {
   std::lock_guard<std::mutex> lock(mutex_);
   ObjectSearchOutput::Ptr output = std::make_shared<ObjectSearchOutput>();
   output->general_prompt = input->prompt;
+  output->object_search = input->object_search;
   const auto room_id = findRoom(input, output);
   if (output->room.empty()) {
     LOG(ERROR) << "Room not found!";
@@ -151,6 +152,10 @@ bool ObjectSearchModule::findObjects(const ObjectSearchInput::Ptr& input,
     return false;
   }
 
+  if (input->object_search) {
+     return basicObjectSearch(input, output, objects_in_room, object_embeddings);
+  }
+
   std::unordered_map<NodeId, std::vector<NodeId>> edges_in_room;
   for (size_t i = 0; i < objects_in_room.size(); ++i) {
     for (size_t j = 0; j < objects_in_room.size(); ++j) {
@@ -173,14 +178,14 @@ bool ObjectSearchModule::findObjects(const ObjectSearchInput::Ptr& input,
 
   // Basic object search, where pairs of objects (for relationships) are not specified
   if (input->objects_prompt_pairs.empty()) {
-    return basicObjectSearch(input, output, objects_in_room, object_embeddings, edges_in_room);
+    return basicObjectRelationshipsSearch(input, output, objects_in_room, object_embeddings, edges_in_room);
   }
 
   // Pair-based object search, where pairs of objects are specified
-  return pairBasedObjectSearch(input, output, objects_in_room, object_embeddings, edges_in_room);
+  return pairBasedObjectRelationshipsSearch(input, output, objects_in_room, object_embeddings, edges_in_room);
 }
 
-bool ObjectSearchModule::basicObjectSearch(
+bool ObjectSearchModule::basicObjectRelationshipsSearch(
     const ObjectSearchInput::Ptr& input, 
     ObjectSearchOutput::Ptr& output,
     const std::vector<NodeId>& objects_in_room,
@@ -219,7 +224,7 @@ bool ObjectSearchModule::basicObjectSearch(
   return any_edges;
 }
 
-bool ObjectSearchModule::pairBasedObjectSearch(
+bool ObjectSearchModule::pairBasedObjectRelationshipsSearch(
     const ObjectSearchInput::Ptr& input, ObjectSearchOutput::Ptr& output,
     const std::vector<NodeId>& objects_in_room,
     const std::vector<Eigen::VectorXf>& object_embeddings,
@@ -281,6 +286,28 @@ bool ObjectSearchModule::pairBasedObjectSearch(
   return any_edges;
 }
 
+bool ObjectSearchModule::basicObjectSearch(
+      const ObjectSearchInput::Ptr& input, 
+      ObjectSearchOutput::Ptr& output,
+      const std::vector<NodeId>& objects_in_room,
+      const std::vector<Eigen::VectorXf>& object_embeddings) const {
+
+  bool any_objects = false;
+  for (const auto& object_text_feature : input->text_object_embedding) {
+    std::vector<size_t> results;
+    if (cos_sim_search_->searchObject(
+            Eigen::VectorXf(object_text_feature.data), object_embeddings, results)) {
+      any_objects = true;
+      for (const auto& result : results) {
+        ObjectSearchOutput::ObjectRelationship object_relationship;
+        object_relationship.id = objects_in_room[result];
+        output->objects.push_back(object_relationship);
+      }
+    }
+  }
+  return any_objects;
+}
+  
 void ObjectSearchModule::setGraph(const DynamicSceneGraph::Ptr& scene_graph) {
   std::lock_guard<std::mutex> lock(mutex_);
   scene_graph_ = scene_graph;
