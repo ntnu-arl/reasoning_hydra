@@ -1,7 +1,7 @@
 ---
 map:
   voxels_per_side: 16
-  voxel_size: 0.15
+  voxel_size: 0.1
   truncation_distance: 0.3
 dense_representation_radius_m: 8
 mesh:
