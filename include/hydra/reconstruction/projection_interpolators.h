@@ -95,10 +95,12 @@ class ProjectionInterpolator {
   /**
    * @brief Compute the depth based on the provided weights.
    * @param range_image Range image as 32FC1 to interpolate in.
-   * @return float The interpolated range value.
+   * @return if the interpolation was successful.
    */
-  virtual float InterpolateRange(const cv::Mat& range_image,
-                                 const InterpolationWeights& weights) const = 0;
+  virtual bool InterpolateRange(const cv::Mat& range_image,
+                                const InterpolationWeights& weights,
+                                float& d_to_surface,
+                                const float min_range = 0.0f) const = 0;
 
   /**
    * @brief Compute the color based on the provided weights.
@@ -146,8 +148,10 @@ class InterpolatorNearest : public ProjectionInterpolator {
                                       float v,
                                       const cv::Mat& range_image) const override;
 
-  float InterpolateRange(const cv::Mat& range_image,
-                         const InterpolationWeights& weights) const override;
+  bool InterpolateRange(const cv::Mat& range_image,
+                        const InterpolationWeights& weights,
+                        float& d_to_surface,
+                        const float min_range = 0.0f) const override;
 
   Color interpolateColor(const cv::Mat& color_image,
                          const InterpolationWeights& weights) const override;
@@ -179,8 +183,10 @@ class InterpolatorBilinear : public ProjectionInterpolator {
                                       float v,
                                       const cv::Mat& range_image) const override;
 
-  float InterpolateRange(const cv::Mat& range_image,
-                         const InterpolationWeights& weights) const override;
+  bool InterpolateRange(const cv::Mat& range_image,
+                        const InterpolationWeights& weights,
+                        float& d_to_surface,
+                        const float min_range = 0.0f) const override;
 
   Color interpolateColor(const cv::Mat& color_image,
                          const InterpolationWeights& weights) const override;
@@ -213,8 +219,10 @@ class InterpolatorAdaptive : public InterpolatorBilinear {
                                       float v,
                                       const cv::Mat& range_image) const override;
 
-  float InterpolateRange(const cv::Mat& range_image,
-                         const InterpolationWeights& weights) const override;
+  bool InterpolateRange(const cv::Mat& range_image,
+                        const InterpolationWeights& weights,
+                        float& d_to_surface,
+                        const float min_range = 0.0f) const override;
 
   Color interpolateColor(const cv::Mat& color_image,
                          const InterpolationWeights& weights) const override;

@@ -159,10 +159,11 @@ class ProjectiveIntegrator {
   /**
    * @brief Compute the signed distance value for the given point.
    */
-  float computeSDF(const InputData& data,
+  bool computeSDF(const InputData& data,
                    const InterpolationWeights& weights,
                    const float truncation_distance,
-                   const float distance_to_voxel) const;
+                   const float distance_to_voxel,
+                   float& sdf) const;
 
   /**
    * @brief Compute the TSDF update weight for the given point.
