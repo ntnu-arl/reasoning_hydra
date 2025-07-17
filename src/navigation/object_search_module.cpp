@@ -255,6 +255,9 @@ bool ObjectSearchModule::pairBasedObjectRelationshipsSearch(
     for (const auto& object : found_objects.at(pair.object_label_index)) {
       ObjectSearchOutput::ObjectRelationship object_relationship;
       object_relationship.id = object;
+      if (edges_in_room.count(object_relationship.id) == 0) {
+        continue; // Skip if no edges for this object
+      }
       for (const auto& subject : edges_in_room.at(object_relationship.id)) {
         // Check if the subject is in the found objects for the subject label index
         if (std::find(found_objects.at(pair.subject_label_index).begin(),
@@ -266,6 +269,10 @@ bool ObjectSearchModule::pairBasedObjectRelationshipsSearch(
         ObjectSearchOutput::ObjectRelationship::ObjectFeature object_feature;
         object_feature.object1 = object_relationship.id;
         object_feature.object2 = subject;
+        if (!scene_graph_->hasNode(object_relationship.id) ||
+            !scene_graph_->hasNode(subject)) {
+          continue; // Skip if nodes do not exist
+        }
         object_feature.object1_label =
             scene_graph_->getNode(object_relationship.id)
                 .attributes<SemanticNodeAttributes>()
@@ -273,8 +280,8 @@ bool ObjectSearchModule::pairBasedObjectRelationshipsSearch(
         object_feature.object2_label =
             scene_graph_->getNode(subject).attributes<SemanticNodeAttributes>().name;
         object_feature.feature = scene_graph_->getEdge(object_relationship.id, subject)
-                                     .attributes<EdgeAttributes>()
-                                     .feature(object_relationship.id);
+                                    .attributes<EdgeAttributes>()
+                                    .feature(object_relationship.id);
         object_feature.prompt = pair.prompt;
         object_relationship.relationships.push_back(object_feature);
       }
