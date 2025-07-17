@@ -8,6 +8,14 @@ void dijkstra(const std::map<NodeId, SceneGraphNode::Ptr>& nodes,
               const NodeId& goal,
               std::vector<NodeId>& path,
               std::vector<Eigen::Vector3d>& path_points) {
+  path.clear();
+  path_points.clear();
+
+  // Ensure start and goal exist
+  if (nodes.find(start) == nodes.end() || nodes.find(goal) == nodes.end()) {
+    return;
+  }
+
   std::unordered_map<NodeId, double> dist;
   std::unordered_map<NodeId, NodeId> prev;
   MinHeap pq;
@@ -33,9 +41,16 @@ void dijkstra(const std::map<NodeId, SceneGraphNode::Ptr>& nodes,
       } else {
         continue;
       }
-      double weight = (nodes.at(current)->attributes<NodeAttributes>().position -
-                       nodes.at(neighbor)->attributes<NodeAttributes>().position)
+
+      // Only consider neighbors that exist in nodes
+      if (nodes.find(neighbor) == nodes.end()) continue;
+
+      const auto& currentNode = nodes.at(current);
+      const auto& neighborNode = nodes.at(neighbor);
+      double weight = (currentNode->attributes<NodeAttributes>().position -
+                       neighborNode->attributes<NodeAttributes>().position)
                           .norm();
+
       double newDist = currentDist + weight;
       if (newDist < dist[neighbor]) {
         dist[neighbor] = newDist;
@@ -45,14 +60,23 @@ void dijkstra(const std::map<NodeId, SceneGraphNode::Ptr>& nodes,
     }
   }
 
-  path.clear();
+  // If goal is unreachable
   if (dist[goal] == std::numeric_limits<double>::infinity()) {
     return;
   }
 
-  for (NodeId at = goal; at != start; at = prev[at]) {
+  // Reconstruct path
+  NodeId at = goal;
+  while (at != start) {
+    auto it = prev.find(at);
+    if (it == prev.end()) {
+      path.clear();
+      path_points.clear();
+      return;
+    }
     path.push_back(at);
     path_points.push_back(nodes.at(at)->attributes<NodeAttributes>().position);
+    at = it->second;
   }
   path.push_back(start);
   path_points.push_back(nodes.at(start)->attributes<NodeAttributes>().position);
