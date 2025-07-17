@@ -104,24 +104,23 @@ class ObjectSearchModule : public Module {
                    const std::optional<NodeId>& chosen_room_id) const;
 
   bool basicObjectRelationshipsSearch(
-      const ObjectSearchInput::Ptr& input, 
+      const ObjectSearchInput::Ptr& input,
       ObjectSearchOutput::Ptr& output,
       const std::vector<NodeId>& objects_in_room,
       const std::vector<Eigen::VectorXf>& object_embeddings,
       const std::unordered_map<NodeId, std::vector<NodeId>>& edges_in_room) const;
   bool pairBasedObjectRelationshipsSearch(
-      const ObjectSearchInput::Ptr& input, 
+      const ObjectSearchInput::Ptr& input,
       ObjectSearchOutput::Ptr& output,
       const std::vector<NodeId>& objects_in_room,
       const std::vector<Eigen::VectorXf>& object_embeddings,
       const std::unordered_map<NodeId, std::vector<NodeId>>& edges_in_room) const;
 
-  bool basicObjectSearch(
-      const ObjectSearchInput::Ptr& input, 
-      ObjectSearchOutput::Ptr& output,
-      const std::vector<NodeId>& objects_in_room,
-      const std::vector<Eigen::VectorXf>& object_embeddings) const;
-      
+  bool basicObjectSearch(const ObjectSearchInput::Ptr& input,
+                         ObjectSearchOutput::Ptr& output,
+                         const std::vector<NodeId>& objects_in_room,
+                         const std::vector<Eigen::VectorXf>& object_embeddings) const;
+
   std::unique_ptr<std::thread> spin_thread_;
   std::mutex mutex_;
   std::atomic<bool> should_shutdown_{false};

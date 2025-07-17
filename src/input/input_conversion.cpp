@@ -262,7 +262,8 @@ int RvlCodec::DecodeVLE() {
   return value;
 }
 
-int RvlCodec::CompressRVL(const unsigned short* input, unsigned char* output,
+int RvlCodec::CompressRVL(const unsigned short* input,
+                          unsigned char* output,
                           int numPixels) {
   buffer_ = pBuffer_ = (int*)output;
   nibblesWritten_ = 0;
@@ -289,7 +290,8 @@ int RvlCodec::CompressRVL(const unsigned short* input, unsigned char* output,
   return int((unsigned char*)pBuffer_ - (unsigned char*)buffer_);  // num bytes
 }
 
-void RvlCodec::DecompressRVL(const unsigned char* input, unsigned short* output,
+void RvlCodec::DecompressRVL(const unsigned char* input,
+                             unsigned short* output,
                              int numPixels) {
   buffer_ = pBuffer_ = const_cast<int*>(reinterpret_cast<const int*>(input));
   nibblesWritten_ = 0;

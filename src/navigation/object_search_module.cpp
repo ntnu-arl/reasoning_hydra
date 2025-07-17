@@ -79,12 +79,11 @@ void ObjectSearchModule::spinOnce(const ObjectSearchInput::Ptr& input) {
   }
 }
 
-std::optional<NodeId> ObjectSearchModule::findRoom(const ObjectSearchInput::Ptr& input,
-                                                   ObjectSearchOutput::Ptr& output) const {
-  
-  if(input->room == "all"){
+std::optional<NodeId> ObjectSearchModule::findRoom(
+    const ObjectSearchInput::Ptr& input, ObjectSearchOutput::Ptr& output) const {
+  if (input->room == "all") {
     output->room = "all";
-    return std::nullopt; // Special case to use all rooms
+    return std::nullopt;  // Special case to use all rooms
   }
   const auto& room_nodes = scene_graph_->getLayer(DsgLayers::ROOMS).nodes();
   std::vector<std::vector<Eigen::VectorXf>> room_embeddings;
@@ -112,12 +111,13 @@ std::optional<NodeId> ObjectSearchModule::findRoom(const ObjectSearchInput::Ptr&
       return room_ids[result];
     }
   }
-  return std::nullopt; // No room found or specified
+  return std::nullopt;  // No room found or specified
 }
 
-bool ObjectSearchModule::findObjects(const ObjectSearchInput::Ptr& input,
-                                     ObjectSearchOutput::Ptr& output,
-                                     const std::optional<NodeId>& chosen_room_id) const {
+bool ObjectSearchModule::findObjects(
+    const ObjectSearchInput::Ptr& input,
+    ObjectSearchOutput::Ptr& output,
+    const std::optional<NodeId>& chosen_room_id) const {
   std::vector<NodeId> objects_in_room;
   const auto& object_nodes = scene_graph_->getLayer(DsgLayers::OBJECTS).nodes();
   std::vector<Eigen::VectorXf> object_embeddings;
@@ -130,7 +130,7 @@ bool ObjectSearchModule::findObjects(const ObjectSearchInput::Ptr& input,
       objects_in_room.push_back(object_id);
       object_embeddings.push_back(
           object_node->attributes<ObjectNodeAttributes>().semantic_feature);
-      continue; // If no specific room is chosen, include all objects
+      continue;  // If no specific room is chosen, include all objects
     }
     const auto& place_id = object_node->getParent();
     if (!place_id) {
@@ -153,7 +153,7 @@ bool ObjectSearchModule::findObjects(const ObjectSearchInput::Ptr& input,
   }
 
   if (input->object_search) {
-     return basicObjectSearch(input, output, objects_in_room, object_embeddings);
+    return basicObjectSearch(input, output, objects_in_room, object_embeddings);
   }
 
   std::unordered_map<NodeId, std::vector<NodeId>> edges_in_room;
@@ -178,15 +178,17 @@ bool ObjectSearchModule::findObjects(const ObjectSearchInput::Ptr& input,
 
   // Basic object search, where pairs of objects (for relationships) are not specified
   if (input->objects_prompt_pairs.empty()) {
-    return basicObjectRelationshipsSearch(input, output, objects_in_room, object_embeddings, edges_in_room);
+    return basicObjectRelationshipsSearch(
+        input, output, objects_in_room, object_embeddings, edges_in_room);
   }
 
   // Pair-based object search, where pairs of objects are specified
-  return pairBasedObjectRelationshipsSearch(input, output, objects_in_room, object_embeddings, edges_in_room);
+  return pairBasedObjectRelationshipsSearch(
+      input, output, objects_in_room, object_embeddings, edges_in_room);
 }
 
 bool ObjectSearchModule::basicObjectRelationshipsSearch(
-    const ObjectSearchInput::Ptr& input, 
+    const ObjectSearchInput::Ptr& input,
     ObjectSearchOutput::Ptr& output,
     const std::vector<NodeId>& objects_in_room,
     const std::vector<Eigen::VectorXf>& object_embeddings,
@@ -225,13 +227,14 @@ bool ObjectSearchModule::basicObjectRelationshipsSearch(
 }
 
 bool ObjectSearchModule::pairBasedObjectRelationshipsSearch(
-    const ObjectSearchInput::Ptr& input, ObjectSearchOutput::Ptr& output,
+    const ObjectSearchInput::Ptr& input,
+    ObjectSearchOutput::Ptr& output,
     const std::vector<NodeId>& objects_in_room,
     const std::vector<Eigen::VectorXf>& object_embeddings,
     const std::unordered_map<NodeId, std::vector<NodeId>>& edges_in_room) const {
   bool any_edges = false;
-  // First, we find the objects with the highest cosine similairty compared to the list of
-  // objects in the room.
+  // First, we find the objects with the highest cosine similairty compared to the list
+  // of objects in the room.
   std::unordered_map<size_t, std::vector<NodeId>> found_objects;
   for (std::size_t i = 0; i < input->text_object_embedding.size(); ++i) {
     const auto& object_text_feature = input->text_object_embedding[i];
@@ -250,20 +253,20 @@ bool ObjectSearchModule::pairBasedObjectRelationshipsSearch(
   for (const auto& pair : input->objects_prompt_pairs) {
     if (found_objects.count(pair.object_label_index) == 0 ||
         found_objects.count(pair.subject_label_index) == 0) {
-      continue; // Skip if no objects found for this pair
+      continue;  // Skip if no objects found for this pair
     }
     for (const auto& object : found_objects.at(pair.object_label_index)) {
       ObjectSearchOutput::ObjectRelationship object_relationship;
       object_relationship.id = object;
       if (edges_in_room.count(object_relationship.id) == 0) {
-        continue; // Skip if no edges for this object
+        continue;  // Skip if no edges for this object
       }
       for (const auto& subject : edges_in_room.at(object_relationship.id)) {
         // Check if the subject is in the found objects for the subject label index
         if (std::find(found_objects.at(pair.subject_label_index).begin(),
                       found_objects.at(pair.subject_label_index).end(),
                       subject) == found_objects.at(pair.subject_label_index).end()) {
-          continue; // Skip if subject is not found
+          continue;  // Skip if subject is not found
         }
         any_edges = true;
         ObjectSearchOutput::ObjectRelationship::ObjectFeature object_feature;
@@ -271,17 +274,16 @@ bool ObjectSearchModule::pairBasedObjectRelationshipsSearch(
         object_feature.object2 = subject;
         if (!scene_graph_->hasNode(object_relationship.id) ||
             !scene_graph_->hasNode(subject)) {
-          continue; // Skip if nodes do not exist
+          continue;  // Skip if nodes do not exist
         }
-        object_feature.object1_label =
-            scene_graph_->getNode(object_relationship.id)
-                .attributes<SemanticNodeAttributes>()
-                .name;
+        object_feature.object1_label = scene_graph_->getNode(object_relationship.id)
+                                           .attributes<SemanticNodeAttributes>()
+                                           .name;
         object_feature.object2_label =
             scene_graph_->getNode(subject).attributes<SemanticNodeAttributes>().name;
         object_feature.feature = scene_graph_->getEdge(object_relationship.id, subject)
-                                    .attributes<EdgeAttributes>()
-                                    .feature(object_relationship.id);
+                                     .attributes<EdgeAttributes>()
+                                     .feature(object_relationship.id);
         object_feature.prompt = pair.prompt;
         object_relationship.relationships.push_back(object_feature);
       }
@@ -294,11 +296,10 @@ bool ObjectSearchModule::pairBasedObjectRelationshipsSearch(
 }
 
 bool ObjectSearchModule::basicObjectSearch(
-      const ObjectSearchInput::Ptr& input, 
-      ObjectSearchOutput::Ptr& output,
-      const std::vector<NodeId>& objects_in_room,
-      const std::vector<Eigen::VectorXf>& object_embeddings) const {
-
+    const ObjectSearchInput::Ptr& input,
+    ObjectSearchOutput::Ptr& output,
+    const std::vector<NodeId>& objects_in_room,
+    const std::vector<Eigen::VectorXf>& object_embeddings) const {
   bool any_objects = false;
   for (const auto& object_text_feature : input->text_object_embedding) {
     std::vector<size_t> results;
@@ -314,7 +315,7 @@ bool ObjectSearchModule::basicObjectSearch(
   }
   return any_objects;
 }
-  
+
 void ObjectSearchModule::setGraph(const DynamicSceneGraph::Ptr& scene_graph) {
   std::lock_guard<std::mutex> lock(mutex_);
   scene_graph_ = scene_graph;

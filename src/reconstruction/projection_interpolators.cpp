@@ -141,9 +141,10 @@ InterpolationWeights InterpolatorBilinear::computeWeights(float u,
   return weights;
 }
 
-bool InterpolatorBilinear::InterpolateRange(
-    const cv::Mat& range_image, const InterpolationWeights& weights, 
-    float& d_to_surface, const float min_range) const {
+bool InterpolatorBilinear::InterpolateRange(const cv::Mat& range_image,
+                                            const InterpolationWeights& weights,
+                                            float& d_to_surface,
+                                            const float min_range) const {
   const float r0 = range_image.at<float>(weights.v, weights.u);
   const float r1 = range_image.at<float>(weights.v + 1, weights.u);
   const float r2 = range_image.at<float>(weights.v, weights.u + 1);
@@ -309,11 +310,13 @@ InterpolationWeights InterpolatorAdaptive::computeWeights(
   return InterpolatorBilinear::computeWeights(u, v, range_image);
 }
 
-bool InterpolatorAdaptive::InterpolateRange(
-    const cv::Mat& range_image, const InterpolationWeights& weights, 
-    float& d_to_surface, const float min_range) const {
+bool InterpolatorAdaptive::InterpolateRange(const cv::Mat& range_image,
+                                            const InterpolationWeights& weights,
+                                            float& d_to_surface,
+                                            const float min_range) const {
   if (weights.use_bilinear) {
-    return InterpolatorBilinear::InterpolateRange(range_image, weights, d_to_surface, min_range);
+    return InterpolatorBilinear::InterpolateRange(
+        range_image, weights, d_to_surface, min_range);
   }
   d_to_surface = range_image.at<float>(weights.v, weights.u);
   return d_to_surface > min_range;

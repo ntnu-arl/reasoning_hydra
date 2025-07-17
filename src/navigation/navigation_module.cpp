@@ -92,11 +92,12 @@ void NavigationModule::spinOnce(const NavigationInput::Ptr& input) {
     const auto& [obj1, obj2] = input->object_ids[i];
     NavigationPath path;
     if (input->object_search) {
-      if(!findObjectNavigation(obj1, method, place_nodes, object_layer, agent_node, edges, path)) {
+      if (!findObjectNavigation(
+              obj1, method, place_nodes, object_layer, agent_node, edges, path)) {
         continue;
       }
       path.explanation = "";
-    } else{
+    } else {
       if (!findNavigation(
               obj1, obj2, method, place_nodes, object_layer, agent_node, edges, path)) {
         continue;
@@ -188,7 +189,6 @@ bool NavigationModule::findNavigation(const NodeId& obj1,
   return true;
 }
 
-
 bool NavigationModule::findObjectNavigation(const NodeId& obj1,
                                             const std::string& method,
                                             const SceneGraphLayer::Nodes& place_nodes,
@@ -246,7 +246,6 @@ bool NavigationModule::findObjectNavigation(const NodeId& obj1,
   output.agent_to_target = agent_obj1_path_points;
   return true;
 }
-
 
 void NavigationModule::setGraph(const DynamicSceneGraph::Ptr& scene_graph) {
   std::lock_guard<std::mutex> lock(mutex_);

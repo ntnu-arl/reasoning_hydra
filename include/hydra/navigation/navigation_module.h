@@ -105,7 +105,6 @@ class NavigationModule : public Module {
                             const std::set<EdgeKey>& edges,
                             NavigationPath& output) const;
 
-
   std::unique_ptr<std::thread> spin_thread_;
   std::mutex mutex_;
   std::atomic<bool> should_shutdown_{false};

@@ -49,7 +49,7 @@ bool CosSimSearch::searchRoom(
   std::vector<float> probs;
   if (config.room.use_softmax) {
     softmax(sims, probs, config.room.normalize_similarities);
-  } else if (config.object.normalize_similarities){
+  } else if (config.object.normalize_similarities) {
     normalize(sims, probs);
   } else {
     probs = sims;
@@ -72,7 +72,7 @@ bool CosSimSearch::searchObject(const Eigen::VectorXf& text_object_embedding,
   std::vector<float> probs;
   if (config.object.use_softmax) {
     softmax(sims, probs, config.object.normalize_similarities);
-  } else if (config.object.normalize_similarities){
+  } else if (config.object.normalize_similarities) {
     normalize(sims, probs);
   } else {
     probs = sims;

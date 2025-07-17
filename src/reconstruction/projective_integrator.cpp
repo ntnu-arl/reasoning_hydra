@@ -215,8 +215,11 @@ VoxelMeasurement ProjectiveIntegrator::getVoxelMeasurement(
   }
 
   // Compute the signed distance to the surface.
-  if(!computeSDF(
-      data, measurement.interpolation_weights, truncation_distance, voxel_range, measurement.sdf)) {
+  if (!computeSDF(data,
+                  measurement.interpolation_weights,
+                  truncation_distance,
+                  voxel_range,
+                  measurement.sdf)) {
     return measurement;
   }
   if (!std::isfinite(measurement.sdf)) {
@@ -309,7 +312,8 @@ bool ProjectiveIntegrator::computeSDF(const InputData& data,
                                       const float distance_to_voxel,
                                       float& sdf) const {
   float distance_to_surface;
-  bool success = interpolator_->InterpolateRange(data.range_image, weights, distance_to_surface, data.getSensor().min_range());
+  bool success = interpolator_->InterpolateRange(
+      data.range_image, weights, distance_to_surface, data.getSensor().min_range());
   if (success) {
     sdf = distance_to_surface - distance_to_voxel;
     sdf = std::min(sdf, truncation_distance);
