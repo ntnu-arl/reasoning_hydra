@@ -7,7 +7,7 @@ search:
     use_softmax: true
     use_mean: false
   object:
-    prob_threshold: 0.7
+    prob_threshold: 0.75
     normalize_similarities: false
     use_softmax: false
     use_mean: false
