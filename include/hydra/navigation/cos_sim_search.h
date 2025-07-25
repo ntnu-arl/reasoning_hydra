@@ -33,6 +33,9 @@ class CosSimSearch : public Search {
   bool searchRoom(const Eigen::VectorXf& text_room_embedding,
                   const std::vector<std::vector<Eigen::VectorXf>>& room_embeddings,
                   size_t& result) const override;
+  bool searchRooms(const std::vector<Eigen::VectorXf>& text_room_embeddings,
+                   const std::vector<std::vector<Eigen::VectorXf>>& room_embeddings,
+                   std::vector<size_t>& results) const override;
   bool searchObject(const Eigen::VectorXf& text_object_embedding,
                     const std::vector<Eigen::VectorXf>& object_embeddings,
                     std::vector<size_t>& result) const override;

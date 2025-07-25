@@ -58,6 +58,41 @@ bool CosSimSearch::searchRoom(
   return probs[result] > config.room.prob_threshold;
 }
 
+bool CosSimSearch::searchRooms(
+    const std::vector<Eigen::VectorXf>& text_room_embeddings,
+    const std::vector<std::vector<Eigen::VectorXf>>& room_embeddings,
+    std::vector<size_t>& results) const {
+  if (room_embeddings.empty() || text_room_embeddings.empty()) {
+    return false;
+  }
+
+  std::vector<float> sims(room_embeddings.size(), 0.0);
+  for (size_t i = 0; i < room_embeddings.size(); ++i) {
+    for (size_t j = 0; j < room_embeddings[i].size(); ++j) {
+      const auto sim = cosSim(text_room_embeddings[i], room_embeddings[i][j]);
+      if (config.room.use_mean) {
+        sims[i] += sim / room_embeddings[i].size();
+      } else {
+        sims[i] = std::max(sims[i], sim);
+      }
+    }
+  }
+  std::vector<float> probs;
+  if (config.room.use_softmax) {
+    softmax(sims, probs, config.room.normalize_similarities);
+  } else if (config.object.normalize_similarities) {
+    normalize(sims, probs);
+  } else {
+    probs = sims;
+  }
+  for (size_t i = 0; i < probs.size(); ++i) {
+    if (probs[i] > config.room.prob_threshold) {
+      results.push_back(i);
+    }
+  }
+  return !results.empty();
+}
+
 bool CosSimSearch::searchObject(const Eigen::VectorXf& text_object_embedding,
                                 const std::vector<Eigen::VectorXf>& object_embeddings,
                                 std::vector<size_t>& results) const {

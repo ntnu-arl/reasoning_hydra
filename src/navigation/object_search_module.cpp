@@ -65,12 +65,12 @@ void ObjectSearchModule::spinOnce(const ObjectSearchInput::Ptr& input) {
   ObjectSearchOutput::Ptr output = std::make_shared<ObjectSearchOutput>();
   output->general_prompt = input->prompt;
   output->object_search = input->object_search;
-  const auto room_id = findRoom(input, output);
+  const auto room_ids = findRoom(input, output);
   if (output->room.empty()) {
     LOG(ERROR) << "Room not found!";
     return;
   }
-  if (!findObjects(input, output, room_id)) {
+  if (!findObjects(input, output, room_ids)) {
     LOG(ERROR) << "Objects not found!";
     return;
   }
@@ -79,7 +79,7 @@ void ObjectSearchModule::spinOnce(const ObjectSearchInput::Ptr& input) {
   }
 }
 
-std::optional<NodeId> ObjectSearchModule::findRoom(
+std::optional<std::vector<NodeId>> ObjectSearchModule::findRoom(
     const ObjectSearchInput::Ptr& input, ObjectSearchOutput::Ptr& output) const {
   if (input->room == "all") {
     output->room = "all";
@@ -93,7 +93,7 @@ std::optional<NodeId> ObjectSearchModule::findRoom(
     if (!input->room.empty()) {
       if (room_node->attributes<SemanticNodeAttributes>().name == input->room) {
         output->room = input->room;
-        return room_id;
+        return std::vector<NodeId>{room_id};  // Return the room ID if it matches
       }
     } else {
       room_embeddings.push_back(
@@ -103,12 +103,30 @@ std::optional<NodeId> ObjectSearchModule::findRoom(
     }
   }
   if (input->room.empty()) {
-    size_t result;
-    if (cos_sim_search_->searchRoom(Eigen::VectorXf(input->text_room_embedding.data),
-                                    room_embeddings,
-                                    result)) {
-      output->room = room_names[result];
-      return room_ids[result];
+    if (input->room == "find") {
+      std::vector<Eigen::VectorXf> object_embeddings;
+      for (const auto& object_feature : input->text_object_embedding) {
+        object_embeddings.push_back(Eigen::VectorXf(object_feature.data));
+      }
+      std::vector<size_t> results;
+      if (cos_sim_search_->searchRooms(object_embeddings, room_embeddings, results)) {
+        std::vector<NodeId> found_room_ids;
+        for (const auto& result : results) {
+          if (result < room_ids.size()) {
+            output->room += room_names[result] + ", ";
+            found_room_ids.push_back(room_ids[result]);
+          }
+        }
+        return found_room_ids;
+      }
+    } else {
+      size_t result;
+      if (cos_sim_search_->searchRoom(Eigen::VectorXf(input->text_room_embedding.data),
+                                      room_embeddings,
+                                      result)) {
+        output->room = room_names[result];
+        return std::vector<NodeId>{room_ids[result]};
+      }
     }
   }
   return std::nullopt;  // No room found or specified
@@ -117,7 +135,7 @@ std::optional<NodeId> ObjectSearchModule::findRoom(
 bool ObjectSearchModule::findObjects(
     const ObjectSearchInput::Ptr& input,
     ObjectSearchOutput::Ptr& output,
-    const std::optional<NodeId>& chosen_room_id) const {
+    const std::optional<std::vector<NodeId>>& chosen_room_ids) const {
   std::vector<NodeId> objects_in_room;
   const auto& object_nodes = scene_graph_->getLayer(DsgLayers::OBJECTS).nodes();
   std::vector<Eigen::VectorXf> object_embeddings;
@@ -126,7 +144,7 @@ bool ObjectSearchModule::findObjects(
     if (!object_node->attributes<ObjectNodeAttributes>().validFeatures()) {
       continue;
     }
-    if (!chosen_room_id) {
+    if (!chosen_room_ids) {
       objects_in_room.push_back(object_id);
       object_embeddings.push_back(
           object_node->attributes<ObjectNodeAttributes>().semantic_feature);
@@ -140,7 +158,9 @@ bool ObjectSearchModule::findObjects(
     if (!room_id) {
       continue;
     }
-    if (*room_id == *chosen_room_id) {
+    if (std::find(chosen_room_ids.value().begin(),
+                  chosen_room_ids.value().end(),
+                  *room_id) != chosen_room_ids.value().end()) {
       objects_in_room.push_back(object_id);
       object_embeddings.push_back(
           object_node->attributes<ObjectNodeAttributes>().semantic_feature);

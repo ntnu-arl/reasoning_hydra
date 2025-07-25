@@ -96,12 +96,12 @@ class ObjectSearchModule : public Module {
   InputQueue<ObjectSearchOutput::Ptr>::Ptr outputQueue() const { return output_queue_; }
 
  protected:
-  std::optional<NodeId> findRoom(const ObjectSearchInput::Ptr& input,
-                                 ObjectSearchOutput::Ptr& output) const;
+  std::optional<std::vector<NodeId>> findRoom(const ObjectSearchInput::Ptr& input,
+                                              ObjectSearchOutput::Ptr& output) const;
 
   bool findObjects(const ObjectSearchInput::Ptr& input,
                    ObjectSearchOutput::Ptr& output,
-                   const std::optional<NodeId>& chosen_room_id) const;
+                   const std::optional<std::vector<NodeId>>& chosen_room_ids) const;
 
   bool basicObjectRelationshipsSearch(
       const ObjectSearchInput::Ptr& input,
