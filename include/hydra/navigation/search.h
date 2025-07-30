@@ -14,14 +14,17 @@ class Search {
   virtual bool searchRoom(
       const Eigen::VectorXf& text_room_embedding,
       const std::vector<std::vector<Eigen::VectorXf>>& room_embeddings,
-      size_t& result) const = 0;
+      size_t& result,
+      std::vector<float>& probs) const = 0;
   virtual bool searchRooms(
       const std::vector<Eigen::VectorXf>& text_room_embeddings,
       const std::vector<std::vector<Eigen::VectorXf>>& room_embeddings,
-      std::vector<size_t>& results) const = 0;
+      std::vector<size_t>& results,
+      std::vector<float>& probs) const = 0;
   virtual bool searchObject(const Eigen::VectorXf& text_object_embedding,
                             const std::vector<Eigen::VectorXf>& object_embeddings,
-                            std::vector<size_t>& result) const = 0;
+                            std::vector<size_t>& result,
+                            std::vector<float>& probs) const = 0;
 };
 
 }  // namespace hydra

@@ -7,6 +7,7 @@ void declare_config(ObjectSearchModule::Config& config) {
   name("ObjectSearchConfig::Config");
   config.search.setOptional();
   field(config.search, "search");
+  field(config.verbose, "verbose");
 }
 
 ObjectSearchModule::ObjectSearchModule(const Config& config)
@@ -81,6 +82,7 @@ void ObjectSearchModule::spinOnce(const ObjectSearchInput::Ptr& input) {
 
 std::optional<std::vector<NodeId>> ObjectSearchModule::findRoom(
     const ObjectSearchInput::Ptr& input, ObjectSearchOutput::Ptr& output) const {
+
   if (input->room == "all") {
     output->room = "all";
     return std::nullopt;  // Special case to use all rooms
@@ -90,7 +92,7 @@ std::optional<std::vector<NodeId>> ObjectSearchModule::findRoom(
   std::vector<std::string> room_names;
   std::vector<NodeId> room_ids;
   for (const auto& [room_id, room_node] : room_nodes) {
-    if (!input->room.empty()) {
+    if (!input->room.empty() && input->room != "find") {
       if (room_node->attributes<SemanticNodeAttributes>().name == input->room) {
         output->room = input->room;
         return std::vector<NodeId>{room_id};  // Return the room ID if it matches
@@ -102,31 +104,47 @@ std::optional<std::vector<NodeId>> ObjectSearchModule::findRoom(
       room_ids.push_back(room_id);
     }
   }
-  if (input->room.empty()) {
-    if (input->room == "find") {
-      std::vector<Eigen::VectorXf> object_embeddings;
-      for (const auto& object_feature : input->text_object_embedding) {
-        object_embeddings.push_back(Eigen::VectorXf(object_feature.data));
-      }
-      std::vector<size_t> results;
-      if (cos_sim_search_->searchRooms(object_embeddings, room_embeddings, results)) {
-        std::vector<NodeId> found_room_ids;
-        for (const auto& result : results) {
-          if (result < room_ids.size()) {
-            output->room += room_names[result] + ", ";
-            found_room_ids.push_back(room_ids[result]);
-          }
+  std::vector<float> probs;
+  if (input->room == "find") {
+    std::vector<Eigen::VectorXf> object_embeddings;
+    for (const auto& object_feature : input->text_object_embedding) {
+      object_embeddings.push_back(Eigen::VectorXf(object_feature.data));
+    }
+    std::vector<size_t> results;
+    if (cos_sim_search_->searchRooms(object_embeddings, room_embeddings, results, probs)) {
+      std::vector<NodeId> found_room_ids;
+      for (const auto& result : results) {
+        if (result < room_ids.size()) {
+          output->room += room_names[result] + ", ";
+          found_room_ids.push_back(room_ids[result]);
         }
-        return found_room_ids;
       }
-    } else {
-      size_t result;
-      if (cos_sim_search_->searchRoom(Eigen::VectorXf(input->text_room_embedding.data),
-                                      room_embeddings,
-                                      result)) {
-        output->room = room_names[result];
-        return std::vector<NodeId>{room_ids[result]};
+      if (config.verbose) {
+        // Log the probabilities of the rooms and the threshold
+        std::string log_message = "Room probabilities: ";
+        for (size_t i = 0; i < probs.size(); ++i) {
+          log_message += room_names[i] + ": " + std::to_string(probs[i]) + ", ";
+        }
+        LOG(ERROR) << log_message;
+      }          
+      return found_room_ids;
+    }
+    if (config.verbose) {
+      // Log the probabilities of the rooms and the threshold
+      std::string log_message = "Room probabilities: ";
+      for (size_t i = 0; i < probs.size(); ++i) {
+        log_message += room_names[i] + ": " + std::to_string(probs[i]) + ", ";
       }
+      LOG(ERROR) << log_message;
+    }    
+  } else if (input->room.empty()) {
+    size_t result;
+    if (cos_sim_search_->searchRoom(Eigen::VectorXf(input->text_room_embedding.data),
+                                    room_embeddings,
+                                    result,
+                                    probs)) {
+      output->room = room_names[result];
+      return std::vector<NodeId>{room_ids[result]};
     }
   }
   return std::nullopt;  // No room found or specified
@@ -216,8 +234,9 @@ bool ObjectSearchModule::basicObjectRelationshipsSearch(
   bool any_edges = false;
   for (const auto& object_text_feature : input->text_object_embedding) {
     std::vector<size_t> results;
+    std::vector<float> probs;
     if (cos_sim_search_->searchObject(
-            Eigen::VectorXf(object_text_feature.data), object_embeddings, results)) {
+            Eigen::VectorXf(object_text_feature.data), object_embeddings, results, probs)) {
       for (const auto& result : results) {
         if (edges_in_room.count(objects_in_room[result]) == 0) {
           continue;
@@ -259,8 +278,9 @@ bool ObjectSearchModule::pairBasedObjectRelationshipsSearch(
   for (std::size_t i = 0; i < input->text_object_embedding.size(); ++i) {
     const auto& object_text_feature = input->text_object_embedding[i];
     std::vector<size_t> results;
+    std::vector<float> probs;
     if (cos_sim_search_->searchObject(
-            Eigen::VectorXf(object_text_feature.data), object_embeddings, results)) {
+            Eigen::VectorXf(object_text_feature.data), object_embeddings, results, probs)) {
       for (const auto& result : results) {
         if (result < objects_in_room.size()) {
           found_objects[i].push_back(objects_in_room[result]);
@@ -323,8 +343,9 @@ bool ObjectSearchModule::basicObjectSearch(
   bool any_objects = false;
   for (const auto& object_text_feature : input->text_object_embedding) {
     std::vector<size_t> results;
+    std::vector<float> probs;
     if (cos_sim_search_->searchObject(
-            Eigen::VectorXf(object_text_feature.data), object_embeddings, results)) {
+            Eigen::VectorXf(object_text_feature.data), object_embeddings, results, probs)) {
       any_objects = true;
       for (const auto& result : results) {
         ObjectSearchOutput::ObjectRelationship object_relationship;

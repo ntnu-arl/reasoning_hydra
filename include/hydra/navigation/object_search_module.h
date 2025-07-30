@@ -72,6 +72,7 @@ class ObjectSearchModule : public Module {
 
   struct Config {
     config::VirtualConfig<Search> search;
+    bool verbose = false;
   } const config;
 
   explicit ObjectSearchModule(const Config& config);

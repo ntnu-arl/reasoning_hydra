@@ -28,7 +28,8 @@ CosSimSearch::~CosSimSearch() {}
 bool CosSimSearch::searchRoom(
     const Eigen::VectorXf& text_room_embedding,
     const std::vector<std::vector<Eigen::VectorXf>>& room_embeddings,
-    size_t& result) const {
+    size_t& result,
+    std::vector<float>& probs) const {
   if (room_embeddings.empty()) {
     return false;
   }
@@ -46,7 +47,6 @@ bool CosSimSearch::searchRoom(
       sims[i] = *std::max_element(room_sims.begin(), room_sims.end());
     }
   }
-  std::vector<float> probs;
   if (config.room.use_softmax) {
     softmax(sims, probs, config.room.normalize_similarities);
   } else if (config.object.normalize_similarities) {
@@ -61,7 +61,8 @@ bool CosSimSearch::searchRoom(
 bool CosSimSearch::searchRooms(
     const std::vector<Eigen::VectorXf>& text_room_embeddings,
     const std::vector<std::vector<Eigen::VectorXf>>& room_embeddings,
-    std::vector<size_t>& results) const {
+    std::vector<size_t>& results,
+    std::vector<float>& probs) const {
   if (room_embeddings.empty() || text_room_embeddings.empty()) {
     return false;
   }
@@ -77,7 +78,6 @@ bool CosSimSearch::searchRooms(
       }
     }
   }
-  std::vector<float> probs;
   if (config.room.use_softmax) {
     softmax(sims, probs, config.room.normalize_similarities);
   } else if (config.object.normalize_similarities) {
@@ -95,7 +95,8 @@ bool CosSimSearch::searchRooms(
 
 bool CosSimSearch::searchObject(const Eigen::VectorXf& text_object_embedding,
                                 const std::vector<Eigen::VectorXf>& object_embeddings,
-                                std::vector<size_t>& results) const {
+                                std::vector<size_t>& results,
+                                std::vector<float>& probs) const {
   if (object_embeddings.empty()) {
     return false;
   }
@@ -104,7 +105,6 @@ bool CosSimSearch::searchObject(const Eigen::VectorXf& text_object_embedding,
   for (size_t i = 0; i < object_embeddings.size(); ++i) {
     sims[i] = cosSim(text_object_embedding, object_embeddings[i]);
   }
-  std::vector<float> probs;
   if (config.object.use_softmax) {
     softmax(sims, probs, config.object.normalize_similarities);
   } else if (config.object.normalize_similarities) {
