@@ -1,0 +1,323 @@
+---
+total_semantic_labels: 160
+dynamic_labels: []
+invalid_labels: []
+object_labels:
+- 0
+- 1
+- 2
+- 3
+- 4
+- 5
+- 6
+- 7
+- 8
+- 9
+- 10
+- 11
+- 12
+- 13
+- 14
+- 15
+- 16
+- 17
+- 18
+- 19
+- 20
+- 21
+- 22
+- 23
+- 24
+- 25
+- 27
+- 28
+- 29
+- 30
+- 31
+- 32
+- 33
+- 34
+- 35
+- 36
+- 37
+- 38
+- 39
+- 40
+- 41
+- 42
+- 43
+- 44
+- 45
+- 46
+- 47
+- 48
+- 49
+- 50
+- 51
+- 52
+- 53
+- 54
+- 55
+- 56
+- 58
+- 59
+- 60
+- 61
+- 62
+- 63
+- 64
+- 65
+- 66
+- 67
+- 68
+- 69
+- 70
+- 71
+- 72
+- 73
+- 74
+- 75
+- 76
+- 77
+- 78
+- 79
+- 80
+- 81
+- 82
+- 83
+- 84
+- 85
+- 86
+- 87
+- 88
+- 89
+- 90
+- 91
+- 92
+- 93
+- 94
+- 95
+- 96
+- 97
+- 98
+- 99
+- 100
+- 101
+- 102
+- 103
+- 104
+- 105
+- 106
+- 107
+- 108
+- 109
+- 110
+- 111
+- 112
+- 113
+- 114
+- 115
+- 116
+- 117
+- 118
+- 119
+- 120
+- 121
+- 122
+- 123
+- 124
+- 127
+- 128
+- 129
+- 130
+- 131
+- 132
+- 133
+- 134
+- 135
+- 136
+- 137
+- 138
+- 139
+- 140
+- 141
+- 142
+- 143
+- 144
+- 145
+- 146
+- 147
+- 148
+- 149
+- 150
+- 151
+- 152
+- 153
+- 155
+- 156
+- 157
+- 158
+- 159
+surface_places_labels: []
+label_names:
+- {label: 0, name: armchair, name_descriptive: a armchair}
+- {label: 1, name: backpack, name_descriptive: a backpack}
+- {label: 2, name: bag, name_descriptive: a bag}
+- {label: 3, name: ball, name_descriptive: a ball}
+- {label: 4, name: bar, name_descriptive: a bar}
+- {label: 5, name: basin, name_descriptive: a basin}
+- {label: 6, name: basket, name_descriptive: a basket}
+- {label: 7, name: bath cabinet, name_descriptive: a bath cabinet}
+- {label: 8, name: bathtub, name_descriptive: a bathtub}
+- {label: 9, name: bed, name_descriptive: a bed}
+- {label: 10, name: bedside table, name_descriptive: a bedside table}
+- {label: 11, name: bench, name_descriptive: a bench}
+- {label: 12, name: bidet, name_descriptive: a bidet}
+- {label: 13, name: bin, name_descriptive: a bin}
+- {label: 14, name: blanket, name_descriptive: a blanket}
+- {label: 15, name: blinds, name_descriptive: a blinds}
+- {label: 16, name: board, name_descriptive: a board}
+- {label: 17, name: book, name_descriptive: a book}
+- {label: 18, name: books, name_descriptive: a books}
+- {label: 19, name: bookshelf, name_descriptive: a bookshelf}
+- {label: 20, name: bottle, name_descriptive: a bottle}
+- {label: 21, name: box, name_descriptive: a box}
+- {label: 22, name: bread, name_descriptive: a bread}
+- {label: 23, name: bucket, name_descriptive: a bucket}
+- {label: 24, name: cabinet, name_descriptive: a cabinet}
+- {label: 25, name: carpet, name_descriptive: a carpet}
+- {label: 26, name: ceiling, name_descriptive: a ceiling}
+- {label: 27, name: chair, name_descriptive: a chair}
+- {label: 28, name: cleanser, name_descriptive: a cleanser}
+- {label: 29, name: clock, name_descriptive: a clock}
+- {label: 30, name: closet, name_descriptive: a closet}
+- {label: 31, name: clothes, name_descriptive: a clothes}
+- {label: 32, name: clothes dryer, name_descriptive: a clothes dryer}
+- {label: 33, name: clutter, name_descriptive: a clutter}
+- {label: 34, name: coffee machine, name_descriptive: a coffee machine}
+- {label: 35, name: coffee table, name_descriptive: a coffee table}
+- {label: 36, name: commode, name_descriptive: a commode}
+- {label: 37, name: computer desk, name_descriptive: a computer desk}
+- {label: 38, name: couch, name_descriptive: a couch}
+- {label: 39, name: couch table, name_descriptive: a couch table}
+- {label: 40, name: counter, name_descriptive: a counter}
+- {label: 41, name: cup, name_descriptive: a cup}
+- {label: 42, name: cupboard, name_descriptive: a cupboard}
+- {label: 43, name: curtain, name_descriptive: a curtain}
+- {label: 44, name: cushion, name_descriptive: a cushion}
+- {label: 45, name: cutting board, name_descriptive: a cutting board}
+- {label: 46, name: decoration, name_descriptive: a decoration}
+- {label: 47, name: desk, name_descriptive: a desk}
+- {label: 48, name: dining chair, name_descriptive: a dining chair}
+- {label: 49, name: dining table, name_descriptive: a dining table}
+- {label: 50, name: door, name_descriptive: a door}
+- {label: 51, name: doorframe, name_descriptive: a doorframe}
+- {label: 52, name: drawer, name_descriptive: a drawer}
+- {label: 53, name: drum, name_descriptive: a drum}
+- {label: 54, name: drying machine, name_descriptive: a drying machine}
+- {label: 55, name: extractor fan, name_descriptive: a extractor fan}
+- {label: 56, name: fireplace, name_descriptive: a fireplace}
+- {label: 57, name: floor, name_descriptive: a floor}
+- {label: 58, name: flower, name_descriptive: a flower}
+- {label: 59, name: flowers, name_descriptive: a flowers}
+- {label: 60, name: folder, name_descriptive: a folder}
+- {label: 61, name: food, name_descriptive: a food}
+- {label: 62, name: footstool, name_descriptive: a footstool}
+- {label: 63, name: frame, name_descriptive: a frame}
+- {label: 64, name: fruit plate, name_descriptive: a fruit plate}
+- {label: 65, name: garbage, name_descriptive: a garbage}
+- {label: 66, name: garbage bin, name_descriptive: a garbage bin}
+- {label: 67, name: grass, name_descriptive: a grass}
+- {label: 68, name: hand dryer, name_descriptive: a hand dryer}
+- {label: 69, name: heater, name_descriptive: a heater}
+- {label: 70, name: item, name_descriptive: a item}
+- {label: 71, name: jacket, name_descriptive: a jacket}
+- {label: 72, name: jar, name_descriptive: a jar}
+- {label: 73, name: kettle, name_descriptive: a kettle}
+- {label: 74, name: kitchen appliance, name_descriptive: a kitchen appliance}
+- {label: 75, name: kitchen cabinet, name_descriptive: a kitchen cabinet}
+- {label: 76, name: kitchen counter, name_descriptive: a kitchen counter}
+- {label: 77, name: kitchen hood, name_descriptive: a kitchen hood}
+- {label: 78, name: ladder, name_descriptive: a ladder}
+- {label: 79, name: lamp, name_descriptive: a lamp}
+- {label: 80, name: laptop, name_descriptive: a laptop}
+- {label: 81, name: laundry basket, name_descriptive: a laundry basket}
+- {label: 82, name: light, name_descriptive: a light}
+- {label: 83, name: machine, name_descriptive: a machine}
+- {label: 84, name: magazine rack, name_descriptive: a magazine rack}
+- {label: 85, name: menu, name_descriptive: a menu}
+- {label: 86, name: microwave, name_descriptive: a microwave}
+- {label: 87, name: mirror, name_descriptive: a mirror}
+- {label: 88, name: monitor, name_descriptive: a monitor}
+- {label: 89, name: napkins, name_descriptive: a napkins}
+- {label: 90, name: nightstand, name_descriptive: a nightstand}
+- {label: 91, name: object, name_descriptive: a object}
+- {label: 92, name: objects, name_descriptive: a objects}
+- {label: 93, name: organizer, name_descriptive: a organizer}
+- {label: 94, name: ottoman, name_descriptive: a ottoman}
+- {label: 95, name: oven, name_descriptive: a oven}
+- {label: 96, name: pack, name_descriptive: a pack}
+- {label: 97, name: pan, name_descriptive: a pan}
+- {label: 98, name: paper towel, name_descriptive: a paper towel}
+- {label: 99, name: papers, name_descriptive: a papers}
+- {label: 100, name: pc, name_descriptive: a pc}
+- {label: 101, name: picture, name_descriptive: a picture}
+- {label: 102, name: pile of books, name_descriptive: a pile of books}
+- {label: 103, name: pile of papers, name_descriptive: a pile of papers}
+- {label: 104, name: pillow, name_descriptive: a pillow}
+- {label: 105, name: pipe, name_descriptive: a pipe}
+- {label: 106, name: plant, name_descriptive: a plant}
+- {label: 107, name: plate, name_descriptive: a plate}
+- {label: 108, name: player, name_descriptive: a player}
+- {label: 109, name: pot, name_descriptive: a pot}
+- {label: 110, name: printer, name_descriptive: a printer}
+- {label: 111, name: rack, name_descriptive: a rack}
+- {label: 112, name: radiator, name_descriptive: a radiator}
+- {label: 113, name: recycle bin, name_descriptive: a recycle bin}
+- {label: 114, name: refrigerator, name_descriptive: a refrigerator}
+- {label: 115, name: rocking chair, name_descriptive: a rocking chair}
+- {label: 116, name: scale, name_descriptive: a scale}
+- {label: 117, name: screen, name_descriptive: a screen}
+- {label: 118, name: shelf, name_descriptive: a shelf}
+- {label: 119, name: shoe, name_descriptive: a shoe}
+- {label: 120, name: shoe rack, name_descriptive: a shoe rack}
+- {label: 121, name: shoes, name_descriptive: a shoes}
+- {label: 122, name: showcase, name_descriptive: a showcase}
+- {label: 123, name: shower, name_descriptive: a shower}
+- {label: 124, name: shower curtain, name_descriptive: a shower curtain}
+- {label: 125, name: shower floor, name_descriptive: a shower floor}
+- {label: 126, name: shower wall, name_descriptive: a shower wall}
+- {label: 127, name: side table, name_descriptive: a side table}
+- {label: 128, name: sink, name_descriptive: a sink}
+- {label: 129, name: soap dish, name_descriptive: a soap dish}
+- {label: 130, name: socket, name_descriptive: a socket}
+- {label: 131, name: sofa, name_descriptive: a sofa}
+- {label: 132, name: sofa chair, name_descriptive: a sofa chair}
+- {label: 133, name: stair, name_descriptive: a stair}
+- {label: 134, name: stand, name_descriptive: a stand}
+- {label: 135, name: stool, name_descriptive: a stool}
+- {label: 136, name: stove, name_descriptive: a stove}
+- {label: 137, name: stuffed animal, name_descriptive: a stuffed animal}
+- {label: 138, name: suitcase, name_descriptive: a suitcase}
+- {label: 139, name: table, name_descriptive: a table}
+- {label: 140, name: table lamp, name_descriptive: a table lamp}
+- {label: 141, name: telephone, name_descriptive: a telephone}
+- {label: 142, name: toaster, name_descriptive: a toaster}
+- {label: 143, name: toilet, name_descriptive: a toilet}
+- {label: 144, name: toilet brush, name_descriptive: a toilet brush}
+- {label: 145, name: toilet paper, name_descriptive: a toilet paper}
+- {label: 146, name: toilet paper dispenser, name_descriptive: a toilet paper dispenser}
+- {label: 147, name: towel, name_descriptive: a towel}
+- {label: 148, name: trash can, name_descriptive: a trash can}
+- {label: 149, name: trashcan, name_descriptive: a trashcan}
+- {label: 150, name: tube, name_descriptive: a tube}
+- {label: 151, name: tv, name_descriptive: a tv}
+- {label: 152, name: tv stand, name_descriptive: a tv stand}
+- {label: 153, name: vase, name_descriptive: a vase}
+- {label: 154, name: wall, name_descriptive: a wall}
+- {label: 155, name: wardrobe, name_descriptive: a wardrobe}
+- {label: 156, name: washing machine, name_descriptive: a washing machine}
+- {label: 157, name: washing powder, name_descriptive: a washing powder}
+- {label: 158, name: window, name_descriptive: a window}
+- {label: 159, name: windowsill, name_descriptive: a windowsill}
+- {label: 160, name: unknown, name_descriptive: unknown}
