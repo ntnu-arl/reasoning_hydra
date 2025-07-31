@@ -16,6 +16,7 @@
 #include <thread>
 #include <unordered_map>
 #include <vector>
+#include <unordered_set>
 
 #include "hydra/common/global_info.h"
 #include "hydra/common/module.h"
@@ -64,6 +65,12 @@ struct ObjectSearchOutput {
   std::string room;
   std::string general_prompt;
   bool object_search = false;
+};
+
+struct PairHashNodeId {
+  std::size_t operator()(const std::pair<spark_dsg::NodeId, spark_dsg::NodeId>& p) const {
+    return std::hash<spark_dsg::NodeId>()(p.first) ^ std::hash<spark_dsg::NodeId>()(p.second << 1);
+  }
 };
 
 class ObjectSearchModule : public Module {

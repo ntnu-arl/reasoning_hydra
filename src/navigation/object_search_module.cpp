@@ -290,6 +290,7 @@ bool ObjectSearchModule::pairBasedObjectRelationshipsSearch(
   }
   // Now we iterate over the pairs of objects and their corresponding prompt.
   // We look at the found objects and their relationships.
+  std::unordered_set<std::pair<spark_dsg::NodeId, spark_dsg::NodeId>, PairHashNodeId> seen_pairs;
   for (const auto& pair : input->objects_prompt_pairs) {
     if (found_objects.count(pair.object_label_index) == 0 ||
         found_objects.count(pair.subject_label_index) == 0) {
@@ -308,14 +309,21 @@ bool ObjectSearchModule::pairBasedObjectRelationshipsSearch(
                       subject) == found_objects.at(pair.subject_label_index).end()) {
           continue;  // Skip if subject is not found
         }
-        any_edges = true;
-        ObjectSearchOutput::ObjectRelationship::ObjectFeature object_feature;
-        object_feature.object1 = object_relationship.id;
-        object_feature.object2 = subject;
+        std::pair<spark_dsg::NodeId, spark_dsg::NodeId> key = std::minmax(object_relationship.id, subject);
+        if (seen_pairs.count(key) > 0) {
+          continue;  // Skip if this pair has already been seen
+        }
+        seen_pairs.insert(key);
         if (!scene_graph_->hasNode(object_relationship.id) ||
             !scene_graph_->hasNode(subject)) {
           continue;  // Skip if nodes do not exist
         }
+
+        any_edges = true;
+        ObjectSearchOutput::ObjectRelationship::ObjectFeature object_feature;
+        object_feature.object1 = object_relationship.id;
+        object_feature.object2 = subject;
+        
         object_feature.object1_label = scene_graph_->getNode(object_relationship.id)
                                            .attributes<SemanticNodeAttributes>()
                                            .name;
