@@ -8,6 +8,8 @@ void declare_config(ObjectSearchModule::Config& config) {
   config.search.setOptional();
   field(config.search, "search");
   field(config.verbose, "verbose");
+  field(config.room_prob_threshold, "room_prob_threshold");
+  field(config.object_prob_threshold, "object_prob_threshold");
 }
 
 ObjectSearchModule::ObjectSearchModule(const Config& config)
@@ -111,7 +113,8 @@ std::optional<std::vector<NodeId>> ObjectSearchModule::findRoom(
       object_embeddings.push_back(Eigen::VectorXf(object_feature.data));
     }
     std::vector<size_t> results;
-    if (cos_sim_search_->searchRooms(object_embeddings, room_embeddings, results, probs)) {
+    if (cos_sim_search_->searchRooms(object_embeddings, room_embeddings,
+                                     config.room_prob_threshold, results, probs)) {
       std::vector<NodeId> found_room_ids;
       for (const auto& result : results) {
         if (result < room_ids.size()) {
@@ -141,6 +144,7 @@ std::optional<std::vector<NodeId>> ObjectSearchModule::findRoom(
     size_t result;
     if (cos_sim_search_->searchRoom(Eigen::VectorXf(input->text_room_embedding.data),
                                     room_embeddings,
+                                    config.room_prob_threshold,
                                     result,
                                     probs)) {
       output->room = room_names[result];
@@ -236,7 +240,8 @@ bool ObjectSearchModule::basicObjectRelationshipsSearch(
     std::vector<size_t> results;
     std::vector<float> probs;
     if (cos_sim_search_->searchObject(
-            Eigen::VectorXf(object_text_feature.data), object_embeddings, results, probs)) {
+            Eigen::VectorXf(object_text_feature.data), object_embeddings,
+            config.object_prob_threshold, results, probs)) {
       for (const auto& result : results) {
         if (edges_in_room.count(objects_in_room[result]) == 0) {
           continue;
@@ -280,7 +285,8 @@ bool ObjectSearchModule::pairBasedObjectRelationshipsSearch(
     std::vector<size_t> results;
     std::vector<float> probs;
     if (cos_sim_search_->searchObject(
-            Eigen::VectorXf(object_text_feature.data), object_embeddings, results, probs)) {
+            Eigen::VectorXf(object_text_feature.data), object_embeddings,
+            config.object_prob_threshold, results, probs)) {
       for (const auto& result : results) {
         if (result < objects_in_room.size()) {
           found_objects[i].push_back(objects_in_room[result]);
@@ -353,12 +359,18 @@ bool ObjectSearchModule::basicObjectSearch(
     std::vector<size_t> results;
     std::vector<float> probs;
     if (cos_sim_search_->searchObject(
-            Eigen::VectorXf(object_text_feature.data), object_embeddings, results, probs)) {
+            Eigen::VectorXf(object_text_feature.data), object_embeddings,
+            config.object_prob_threshold, results, probs)) {
       any_objects = true;
       for (const auto& result : results) {
         ObjectSearchOutput::ObjectRelationship object_relationship;
         object_relationship.id = objects_in_room[result];
         output->objects.push_back(object_relationship);
+        if (config.verbose) {
+          LOG(ERROR) << "Found object: " << scene_graph_->getNode(object_relationship.id)
+                    .attributes<SemanticNodeAttributes>().name << " with probability "
+                     << probs[result];
+        }
       }
     }
   }

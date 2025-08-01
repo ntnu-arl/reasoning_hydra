@@ -48,7 +48,10 @@ struct NavigationInput {
   bool object_search = false;
 };
 
-using NavigationOutput = std::vector<NavigationPath>;
+struct NavigationOutput {
+  std::vector<NavigationPath> paths;
+  bool object_search = false;
+};
 
 class NavigationModule : public Module {
  public:

@@ -80,7 +80,9 @@ class ObjectSearchModule : public Module {
   struct Config {
     config::VirtualConfig<Search> search;
     bool verbose = false;
-  } const config;
+    float room_prob_threshold = 0.5;
+    float object_prob_threshold = 0.5;
+  } config;
 
   explicit ObjectSearchModule(const Config& config);
   ~ObjectSearchModule() override;

@@ -72,6 +72,7 @@ void NavigationModule::spinOnce(const NavigationInput::Ptr& input) {
   }
   std::lock_guard<std::mutex> lock(mutex_);
   NavigationOutput output;
+  output.object_search = input->object_search;
   const auto& place_nodes =
       scene_graph_->getLayer(spark_dsg::DsgLayers::PLACES).nodes();
   const auto& object_layer = scene_graph_->getLayer(spark_dsg::DsgLayers::OBJECTS);
@@ -104,9 +105,9 @@ void NavigationModule::spinOnce(const NavigationInput::Ptr& input) {
       }
       path.explanation = input->explanation[i];
     }
-    output.push_back(path);
+    output.paths.push_back(path);
   }
-  if (output.empty()) {
+  if (output.paths.empty()) {
     return;
   }
   output_queue_->push(output);

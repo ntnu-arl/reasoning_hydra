@@ -7,14 +7,12 @@ void declare_config(CosSimSearch::Config& config) {
   name("CosSimSearch::Config");
   {
     NameSpace ns("room");
-    field(config.room.prob_threshold, "prob_threshold");
     field(config.room.normalize_similarities, "normalize_similarities");
     field(config.room.use_softmax, "use_softmax");
     field(config.room.use_mean, "use_mean");
   }
   {
     NameSpace ns("object");
-    field(config.object.prob_threshold, "prob_threshold");
     field(config.object.normalize_similarities, "normalize_similarities");
     field(config.object.use_softmax, "use_softmax");
     field(config.object.use_mean, "use_mean");
@@ -28,6 +26,7 @@ CosSimSearch::~CosSimSearch() {}
 bool CosSimSearch::searchRoom(
     const Eigen::VectorXf& text_room_embedding,
     const std::vector<std::vector<Eigen::VectorXf>>& room_embeddings,
+    const float& prob_threshold,
     size_t& result,
     std::vector<float>& probs) const {
   if (room_embeddings.empty()) {
@@ -55,12 +54,13 @@ bool CosSimSearch::searchRoom(
     probs = sims;
   }
   result = std::distance(probs.begin(), std::max_element(probs.begin(), probs.end()));
-  return probs[result] > config.room.prob_threshold;
+  return probs[result] > prob_threshold;
 }
 
 bool CosSimSearch::searchRooms(
     const std::vector<Eigen::VectorXf>& text_room_embeddings,
     const std::vector<std::vector<Eigen::VectorXf>>& room_embeddings,
+    const float& prob_threshold,
     std::vector<size_t>& results,
     std::vector<float>& probs) const {
   if (room_embeddings.empty() || text_room_embeddings.empty()) {
@@ -86,7 +86,7 @@ bool CosSimSearch::searchRooms(
     probs = sims;
   }
   for (size_t i = 0; i < probs.size(); ++i) {
-    if (probs[i] > config.room.prob_threshold) {
+    if (probs[i] > prob_threshold) {
       results.push_back(i);
     }
   }
@@ -95,6 +95,7 @@ bool CosSimSearch::searchRooms(
 
 bool CosSimSearch::searchObject(const Eigen::VectorXf& text_object_embedding,
                                 const std::vector<Eigen::VectorXf>& object_embeddings,
+                                const float& prob_threshold,
                                 std::vector<size_t>& results,
                                 std::vector<float>& probs) const {
   if (object_embeddings.empty()) {
@@ -113,7 +114,7 @@ bool CosSimSearch::searchObject(const Eigen::VectorXf& text_object_embedding,
     probs = sims;
   }
   for (size_t i = 0; i < probs.size(); ++i) {
-    if (probs[i] > config.object.prob_threshold) {
+    if (probs[i] > prob_threshold) {
       results.push_back(i);
     }
   }
