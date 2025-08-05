@@ -77,6 +77,7 @@ void ObjectSearchModule::spinOnce(const ObjectSearchInput::Ptr& input) {
     LOG(ERROR) << "Objects not found!";
     return;
   }
+  sortObjects(output);
   if (!output_queue_->push(output)) {
     LOG(ERROR) << "Failed to push object search output!";
   }
@@ -324,17 +325,22 @@ bool ObjectSearchModule::pairBasedObjectRelationshipsSearch(
             !scene_graph_->hasNode(subject)) {
           continue;  // Skip if nodes do not exist
         }
+        const std::string& object_name = scene_graph_->getNode(object_relationship.id)
+                                             .attributes<SemanticNodeAttributes>()
+                                             .name;
+        const std::string& subject_name =
+            scene_graph_->getNode(subject).attributes<SemanticNodeAttributes>().name;
+        if (object_name == subject_name) {
+          continue;  // Skip if object and subject are the same
+        }
 
         any_edges = true;
         ObjectSearchOutput::ObjectRelationship::ObjectFeature object_feature;
         object_feature.object1 = object_relationship.id;
         object_feature.object2 = subject;
         
-        object_feature.object1_label = scene_graph_->getNode(object_relationship.id)
-                                           .attributes<SemanticNodeAttributes>()
-                                           .name;
-        object_feature.object2_label =
-            scene_graph_->getNode(subject).attributes<SemanticNodeAttributes>().name;
+        object_feature.object1_label = object_name;
+        object_feature.object2_label = subject_name;
         object_feature.feature = scene_graph_->getEdge(object_relationship.id, subject)
                                      .attributes<EdgeAttributes>()
                                      .feature(object_relationship.id);
@@ -376,6 +382,36 @@ bool ObjectSearchModule::basicObjectSearch(
   }
   return any_objects;
 }
+
+void ObjectSearchModule::sortObjects(ObjectSearchOutput::Ptr& output) const {
+  if (output->objects.empty()) {
+    return;  // No objects to sort
+  }
+  const auto& agent_layer =
+      scene_graph_->dynamicLayersOfType(DsgLayers::AGENTS).begin()->second;
+  if (agent_layer->numNodes() == 0) {
+    return;
+  }
+  const auto& current_pose = agent_layer->getNodeByIndex(agent_layer->numNodes() - 1).attributes<AgentNodeAttributes>().position;
+
+  std::sort(output->objects.begin(), output->objects.end(),
+            [this, &current_pose](const ObjectSearchOutput::ObjectRelationship& a,
+                            const ObjectSearchOutput::ObjectRelationship& b) {
+              if (!scene_graph_->hasNode(a.id) ||
+                  !scene_graph_->hasNode(b.id)) {
+                return false;  // Keep order if nodes do not exist
+              }
+              const auto& object_a_pose = scene_graph_->getNode(a.id)
+                    .attributes<SemanticNodeAttributes>().position;
+              const auto& object_b_pose = scene_graph_->getNode(b.id)
+                    .attributes<SemanticNodeAttributes>().position;
+
+              double dist_a = (object_a_pose - current_pose).norm();
+              double dist_b = (object_b_pose - current_pose).norm();
+              return dist_a < dist_b;
+            });
+}
+
 
 void ObjectSearchModule::setGraph(const DynamicSceneGraph::Ptr& scene_graph) {
   std::lock_guard<std::mutex> lock(mutex_);

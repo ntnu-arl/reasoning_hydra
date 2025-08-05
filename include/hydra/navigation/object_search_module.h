@@ -131,6 +131,8 @@ class ObjectSearchModule : public Module {
                          const std::vector<NodeId>& objects_in_room,
                          const std::vector<Eigen::VectorXf>& object_embeddings) const;
 
+  void sortObjects(ObjectSearchOutput::Ptr& output) const;
+
   std::unique_ptr<std::thread> spin_thread_;
   std::mutex mutex_;
   std::atomic<bool> should_shutdown_{false};
