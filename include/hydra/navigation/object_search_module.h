@@ -57,6 +57,7 @@ struct ObjectSearchOutput {
       std::string object1_label;
       std::string object2_label;
       Eigen::MatrixXf feature;
+      uint16_t num_observations;
       std::string prompt;
     };
     std::vector<ObjectFeature> relationships;

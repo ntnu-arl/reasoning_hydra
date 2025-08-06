@@ -13,3 +13,4 @@ verbose: true
 room_prob_threshold: 0.15
 object_prob_threshold: 0.65
 enable_one_by_one_navigation: true
+always_publish_waypoints: true

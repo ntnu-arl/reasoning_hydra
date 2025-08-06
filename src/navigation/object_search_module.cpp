@@ -341,9 +341,9 @@ bool ObjectSearchModule::pairBasedObjectRelationshipsSearch(
         
         object_feature.object1_label = object_name;
         object_feature.object2_label = subject_name;
-        object_feature.feature = scene_graph_->getEdge(object_relationship.id, subject)
-                                     .attributes<EdgeAttributes>()
-                                     .feature(object_relationship.id);
+        const auto edge = scene_graph_->getEdge(object_relationship.id, subject).attributes<EdgeAttributes>();
+        object_feature.feature = edge.feature(object_relationship.id);
+        object_feature.num_observations = static_cast<uint16_t>(edge.numObservations(object_relationship.id));
         object_feature.prompt = pair.prompt;
         object_relationship.relationships.push_back(object_feature);
       }
