@@ -33,6 +33,10 @@
  * purposes notwithstanding any copyright notation herein.
  * -------------------------------------------------------------------------- */
 #pragma once
+
+#include <memory>
+#include <string>
+
 #include "hydra/common/global_info.h"
 #include "hydra/common/module.h"
 #include "hydra/common/shared_module_state.h"

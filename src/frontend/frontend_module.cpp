@@ -841,4 +841,21 @@ void FrontendModule::updatePlaceMeshMapping(const ReconstructionOutput& input) {
                               << " [ns]";
 }
 
+void FrontendModule::setGraph(const DynamicSceneGraph::Ptr& graph) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  dsg_->graph = graph;
+  state_->backend_graph->graph = graph->clone();
+}
+
+void FrontendModule::callSinks() {
+  backend_input_.reset(new BackendInput());
+  const auto timestamp_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+      std::chrono::system_clock::now().time_since_epoch())
+      .count();
+  Sink::callAll(sinks_,
+                timestamp_ns,
+                *dsg_->graph,
+                *backend_input_);
+}
+
 }  // namespace hydra

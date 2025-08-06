@@ -119,6 +119,10 @@ class FrontendModule : public Module {
 
   void addSink(const Sink::Ptr& sink);
 
+  void setGraph(const DynamicSceneGraph::Ptr& graph);
+
+  void callSinks();
+
  protected:
   virtual void initCallbacks();
 

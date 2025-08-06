@@ -160,6 +160,10 @@ class BackendModule : public kimera_pgmo::KimeraPgmoInterface, public Module {
 
   void setUpdateFunctor(LayerId layer, const UpdateFunctor::Ptr& functor);
 
+  void setGraph(const DynamicSceneGraph::Ptr& graph);
+
+  void callSinks();
+
  protected:
   void setSolverParams();
 

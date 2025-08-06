@@ -946,4 +946,24 @@ void BackendModule::labelEdges(const BackendVLMLabelsInput& vlm_labels) {
   }
 }
 
-}  // namespace hydra
+void BackendModule::setGraph(const DynamicSceneGraph::Ptr& graph) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  private_dsg_->graph = std::move(graph);
+  unmerged_graph_ = private_dsg_->graph->clone();
+}
+
+void BackendModule::callSinks() {
+  // use std chrono to get current time as uint64_t
+  const auto timestamp_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+      std::chrono::system_clock::now().time_since_epoch())
+      .count();
+  Sink::callAll(sinks_,
+                timestamp_ns,
+                *private_dsg_->graph,
+                *deformation_graph_,
+                objects_attributes_);
+  if (objects_attributes_) {
+    objects_attributes_->clear();
+  }
+}
+} // namespace hydra
