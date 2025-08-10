@@ -164,13 +164,14 @@ bool ObjectSearchModule::findObjects(
   std::vector<Eigen::VectorXf> object_embeddings;
 
   for (const auto& [object_id, object_node] : object_nodes) {
-    if (!object_node->attributes<ObjectNodeAttributes>().validFeatures()) {
+    const auto& attrs = object_node->attributes<ObjectNodeAttributes>();
+    if (!attrs.validFeatures() || attrs.mesh_connections.size() < config.min_object_vertices) {
       continue;
     }
     if (!chosen_room_ids) {
       objects_in_room.push_back(object_id);
       object_embeddings.push_back(
-          object_node->attributes<ObjectNodeAttributes>().semantic_feature);
+          attrs.semantic_feature);
       continue;  // If no specific room is chosen, include all objects
     }
     const auto& place_id = object_node->getParent();
@@ -186,7 +187,7 @@ bool ObjectSearchModule::findObjects(
                   *room_id) != chosen_room_ids.value().end()) {
       objects_in_room.push_back(object_id);
       object_embeddings.push_back(
-          object_node->attributes<ObjectNodeAttributes>().semantic_feature);
+          attrs.semantic_feature);
     }
   }
 

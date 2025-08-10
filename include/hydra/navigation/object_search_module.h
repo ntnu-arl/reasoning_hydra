@@ -83,6 +83,7 @@ class ObjectSearchModule : public Module {
     bool verbose = false;
     float room_prob_threshold = 0.5;
     float object_prob_threshold = 0.5;
+    size_t min_object_vertices = 10;
   } config;
 
   explicit ObjectSearchModule(const Config& config);
