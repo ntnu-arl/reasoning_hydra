@@ -8,7 +8,7 @@ mesh:
   min_weight: 0.000001
   integrator_threads: -1
 tsdf:
-  verbosity: 1
+  verbosity: 4
   num_threads: -1
   interpolation_method: bilinear
   semantic_integrator:

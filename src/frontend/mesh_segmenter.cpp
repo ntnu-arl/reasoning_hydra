@@ -74,6 +74,11 @@ void declare_config(MeshSegmenter::Config& config) {
               {spark_dsg::BoundingBox::Type::OBB, "OBB"},
               {spark_dsg::BoundingBox::Type::RAABB, "RAABB"}});
   config.labels = GlobalInfo::instance().getLabelSpaceConfig().object_labels;
+  enum_field(config.edge_fusion_mode,
+             "edge_fusion_mode",
+             {{EdgeFusionMode::AVERAGE, "AVERAGE"},
+              {EdgeFusionMode::FIRST, "FIRST"},
+              {EdgeFusionMode::LAST, "LAST"}});
   field(config.timer_namespace, "timer_namespace");
   field(config.sinks, "sinks");
 }
@@ -453,17 +458,49 @@ void MeshSegmenter::updateGraph(uint64_t timestamp_ns,
             // Check if edge already exists
             if (edge_exists) {
               edge = graph.getEdge(subject_node_id, object_node_id).info->clone();
+              edge->min_prob = 1.0;
+              if (edge->numObservations(subject_node_id) > 0 &&
+                  edge->numObservations(object_node_id) > 0) {
+                // If the edge already exists, we can update the relationship
+                if (config.edge_fusion_mode == EdgeFusionMode::AVERAGE) {
+                  edge->setRelationshipProperty(subject_node_id,
+                                                std::vector<std::string>(),
+                                                std::vector<double>(),
+                                                std::vector<Color>(),
+                                                relation);
+                } else if (config.edge_fusion_mode == EdgeFusionMode::LAST) {
+                  edge.reset(new EdgeAttributes(1.0));
+                  edge->source_id = subject_node_id;
+                  edge->target_id = object_node_id;
+                  edge->min_prob = 1.0;
+                  edge->setRelationshipProperty(subject_node_id,
+                                                    std::vector<std::string>(),
+                                                    std::vector<double>(),
+                                                    std::vector<Color>(),
+                                                    relation);
+                }
+              } else {
+                edge->setRelationshipProperty(subject_node_id,
+                                              std::vector<std::string>(),
+                                              std::vector<double>(),
+                                              std::vector<Color>(),
+                                              relation);
+              }
             } else {
               edge->source_id = subject_node_id;
               edge->target_id = object_node_id;
+              edge->min_prob = 1.0;
+              edge->setRelationshipProperty(subject_node_id,
+                                            std::vector<std::string>(),
+                                            std::vector<double>(),
+                                            std::vector<Color>(),
+                                            relation);
             }
 
-            edge->min_prob = 1.0;
-            edge->setRelationshipProperty(subject_node_id,
-                                          std::vector<std::string>(),
-                                          std::vector<double>(),
-                                          std::vector<Color>(),
-                                          relation);
+           
+            VLOG(1) << "[Mesh segmenter] Num observations between: " << graph.getNode(subject_node_id).attributes<ObjectNodeAttributes>().name
+                    << " and " << graph.getNode(object_node_id).attributes<ObjectNodeAttributes>().name
+                    << " is " << edge->numObservations(subject_node_id);
             bool success = false;
             if (edge_exists) {
               success = graph.setEdgeAttributes(

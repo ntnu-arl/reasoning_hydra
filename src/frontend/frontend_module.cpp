@@ -702,6 +702,9 @@ void FrontendModule::invalidateMeshEdges(const kimera_pgmo::MeshDelta& delta) {
     }
 
     if (attrs.mesh_connections.size() < config.min_object_vertices) {
+      VLOG(1) << "[Hydra Frontend] removing object " << id_node_pair.first << " with "
+              << attrs.mesh_connections.size() << " mesh connections and of class" <<
+              attrs.name;
       objects_to_delete.push_back(id_node_pair.first);
     }
   }
@@ -836,7 +839,7 @@ void FrontendModule::updatePlaceMeshMapping(const ReconstructionOutput& input) {
   PlaceMeshConnector connector(last_mesh_update_);
   const auto num_missing = connector.addConnections(places, deformation_mapping);
 
-  VLOG_IF(1, num_missing > 0) << "[Frontend] " << num_missing
+  VLOG_IF(2, num_missing > 0) << "[Frontend] " << num_missing
                               << " places missing basis points @ " << input.timestamp_ns
                               << " [ns]";
 }

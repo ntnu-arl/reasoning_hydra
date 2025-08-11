@@ -555,7 +555,6 @@ bool BackendModule::updatePrivateDsg(size_t timestamp_ns, bool force_update) {
     if (!force_update && shared_dsg.last_update_time != timestamp_ns) {
       return false;
     }
-
     unmerged_graph_->mergeGraph(*shared_dsg.graph);
   }  // end joint critical section
 

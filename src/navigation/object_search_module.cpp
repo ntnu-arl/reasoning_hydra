@@ -70,11 +70,11 @@ void ObjectSearchModule::spinOnce(const ObjectSearchInput::Ptr& input) {
   output->object_search = input->object_search;
   const auto room_ids = findRoom(input, output);
   if (output->room.empty()) {
-    LOG(ERROR) << "Room not found!";
+    LOG(WARNING) << "Room not found!";
     return;
   }
   if (!findObjects(input, output, room_ids)) {
-    LOG(ERROR) << "Objects not found!";
+    LOG(WARNING) << "Objects not found!";
     return;
   }
   sortObjects(output);
@@ -129,7 +129,7 @@ std::optional<std::vector<NodeId>> ObjectSearchModule::findRoom(
         for (size_t i = 0; i < probs.size(); ++i) {
           log_message += room_names[i] + ": " + std::to_string(probs[i]) + ", ";
         }
-        LOG(ERROR) << log_message;
+        LOG(INFO) << log_message;
       }          
       return found_room_ids;
     }
@@ -139,7 +139,7 @@ std::optional<std::vector<NodeId>> ObjectSearchModule::findRoom(
       for (size_t i = 0; i < probs.size(); ++i) {
         log_message += room_names[i] + ": " + std::to_string(probs[i]) + ", ";
       }
-      LOG(ERROR) << log_message;
+      LOG(INFO) << log_message;
     }    
   } else if (input->room.empty()) {
     size_t result;
@@ -192,7 +192,7 @@ bool ObjectSearchModule::findObjects(
   }
 
   if (objects_in_room.empty()) {
-    LOG(ERROR) << "No objects found in room!";
+    LOG(WARNING) << "No objects found in room!";
     return false;
   }
 
@@ -216,7 +216,7 @@ bool ObjectSearchModule::findObjects(
   }
 
   if (edges_in_room.empty()) {
-    LOG(ERROR) << "No edges found in room!";
+    LOG(WARNING) << "No edges found in room!";
     return false;
   }
 
@@ -344,7 +344,10 @@ bool ObjectSearchModule::pairBasedObjectRelationshipsSearch(
         object_feature.object2_label = subject_name;
         const auto edge = scene_graph_->getEdge(object_relationship.id, subject).attributes<EdgeAttributes>();
         object_feature.feature = edge.feature(object_relationship.id);
-        object_feature.num_observations = static_cast<uint16_t>(edge.numObservations(object_relationship.id));
+        VLOG(1) << "[Object Search] Found relationship between: "
+                 << object_name << " and " << subject_name
+                 << " with num_observations: " << edge.numObservations(object_relationship.id);
+        object_feature.num_observations = edge.numObservations(object_relationship.id);
         object_feature.prompt = pair.prompt;
         object_relationship.relationships.push_back(object_feature);
       }
@@ -374,7 +377,7 @@ bool ObjectSearchModule::basicObjectSearch(
         object_relationship.id = objects_in_room[result];
         output->objects.push_back(object_relationship);
         if (config.verbose) {
-          LOG(ERROR) << "Found object: " << scene_graph_->getNode(object_relationship.id)
+          LOG(INFO) << "Found object: " << scene_graph_->getNode(object_relationship.id)
                     .attributes<SemanticNodeAttributes>().name << " with probability "
                      << probs[result];
         }

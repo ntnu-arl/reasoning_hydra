@@ -58,6 +58,12 @@ struct Cluster {
   std::optional<uint16_t> panoptic_id;
 };
 
+enum class EdgeFusionMode {
+  AVERAGE = 0,
+  FIRST = 1,
+  LAST = 2
+};
+
 using LabelIndices = std::map<uint32_t, std::vector<size_t>>;
 
 class MeshSegmenter {
@@ -79,6 +85,7 @@ class MeshSegmenter {
     float angle_step = 10.0f;
     BoundingBox::Type bounding_box_type = BoundingBox::Type::AABB;
     std::set<uint32_t> labels;
+    EdgeFusionMode edge_fusion_mode = EdgeFusionMode::AVERAGE;
     std::string timer_namespace = "frontend/objects";
     std::vector<Sink::Factory> sinks;
   } const config;
