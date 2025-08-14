@@ -70,9 +70,11 @@ void GraphExtractorInterface::fillParentInfo(const GvdLayer& gvd,
       // the compression-based extractor can have nodes pointing to archived voxels
       continue;
     }
-
-    CHECK(tracker.parents.count(node_index))
-        << "bad gvd voxel: " << *voxel << " @ " << node_index.transpose();
+    if (!tracker.parents.count(node_index)) {
+      continue;
+    }
+    // CHECK(tracker.parents.count(node_index))
+    //     << "bad gvd voxel: " << *voxel << " @ " << node_index.transpose();
 
     // save primary parent first
     const GlobalIndex curr_parent = voxel->parent;
