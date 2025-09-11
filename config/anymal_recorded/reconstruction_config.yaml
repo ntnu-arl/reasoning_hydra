@@ -11,8 +11,5 @@ tsdf:
   verbosity: 4
   num_threads: -1
   interpolation_method: bilinear
-  use_weight_dropoff: true
-  max_weight: 1e5
-  use_constant_weight: false
   semantic_integrator:
     type: MLESemanticIntegrator

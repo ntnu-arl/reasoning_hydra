@@ -1,5 +1,5 @@
 ---
-total_semantic_labels: 70
+total_semantic_labels: 73
 dynamic_labels: [8, 58]
 invalid_labels: []
 object_labels:
@@ -64,6 +64,8 @@ object_labels:
   - 67
   - 68
   - 69
+  - 70
+  - 71
 surface_places_labels:
   - 2
   - 30
@@ -139,3 +141,6 @@ label_names:
   - {label: 67, name: glass, name_descriptive: a drinking glass}
   - {label: 68, name: clock, name_descriptive: a clock}
   - {label: 69, name: flag, name_descriptive: a flag}
+  - {label: 70, name: blanket, name_descriptive: a blanket}
+  - {label: 71, name: backpack, name_descriptive: a backpack}
+  - {label: 72, name: drone, name_descriptive: a drone}
