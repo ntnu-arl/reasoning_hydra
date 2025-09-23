@@ -120,4 +120,11 @@ class NavigationModule : public Module {
 
 void declare_config(NavigationModule::Config& conf);
 
+void startEnd(const std::map<NodeId, SceneGraphNode::Ptr>& nodes,
+              const std::set<EdgeKey>& edges,
+              const NodeId& start,
+              const NodeId& end,
+              std::vector<NodeId>& path,
+              std::vector<Eigen::Vector3d>& path_points);
+
 }  // namespace hydra

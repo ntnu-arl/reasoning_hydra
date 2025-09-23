@@ -7,6 +7,15 @@ void declare_config(NavigationModule::Config& config) {
   name("NavigationConfig");
 }
 
+void startEnd(const std::map<NodeId, SceneGraphNode::Ptr>& nodes,
+              const std::set<EdgeKey>& edges,
+              const NodeId& start,
+              const NodeId& end,
+              std::vector<NodeId>& path,
+              std::vector<Eigen::Vector3d>& path_points) {
+  return;
+}
+
 NavigationModule::NavigationModule(const Config& config) : config(config) {
   input_queue_.reset(new InputQueue<NavigationInput::Ptr>());
   output_queue_.reset(new InputQueue<NavigationOutput>());
@@ -17,6 +26,13 @@ NavigationModule::NavigationModule(const Config& config) : config(config) {
                          const NodeId&,
                          std::vector<NodeId>&,
                          std::vector<Eigen::Vector3d>&)>(dijkstra);
+  shortest_path_methods_["start_end"] = 
+      std::function<void(const std::map<NodeId, SceneGraphNode::Ptr>&,
+                         const std::set<EdgeKey>&,
+                         const NodeId&,
+                         const NodeId&,
+                         std::vector<NodeId>&,
+                         std::vector<Eigen::Vector3d>&)>(startEnd);
 }
 
 NavigationModule::~NavigationModule() { stopImpl(); }
@@ -67,7 +83,7 @@ void NavigationModule::spin() {
 void NavigationModule::spinOnce(const NavigationInput::Ptr& input) {
   std::string method = input->method;
   if (shortest_path_methods_.count(method) == 0) {
-    LOG(INFO) << "Method " << method << " not supported, Dijkstra will be used!";
+    LOG(ERROR) << "Method " << method << " not supported, Dijkstra will be used!";
     method = "dijkstra";
   }
   std::lock_guard<std::mutex> lock(mutex_);
@@ -127,16 +143,6 @@ bool NavigationModule::findNavigation(const NodeId& obj1,
     LOG(ERROR) << "Object node not found!";
     return false;
   }
-  if (obj1_node->parents().empty() || obj2_node->parents().empty()) {
-    LOG(ERROR) << "Object node has no parent!";
-    return false;
-  }
-  const auto& obj1_place = *obj1_node->parents().begin();
-  const auto& obj2_place = *obj2_node->parents().begin();
-  if (!place_nodes.count(obj1_place) || !place_nodes.count(obj2_place)) {
-    LOG(ERROR) << "Object place node not found!";
-    return false;
-  }
 
   const auto& agent_place_id = agent_node.getParent();
   if (!agent_place_id) {
@@ -146,6 +152,21 @@ bool NavigationModule::findNavigation(const NodeId& obj1,
 
   if (!place_nodes.count(*agent_place_id)) {
     LOG(ERROR) << "Agent place node not found!";
+    return false;
+  }
+
+  NodeId obj1_place, obj2_place;
+  if (obj1_node->parents().empty() || obj2_node->parents().empty()) {
+    if (method != "start_end") {
+      LOG(ERROR) << "Object node has no parent!";
+      return false;
+    }
+  } else {
+    obj1_place = *obj1_node->parents().begin();
+    obj2_place = *obj2_node->parents().begin();
+  }
+  if ((!place_nodes.count(obj1_place) || !place_nodes.count(obj2_place)) && method != "start_end") {
+    LOG(ERROR) << "Object place node not found!";
     return false;
   }
 
