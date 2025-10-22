@@ -1,0 +1,15 @@
+---
+map:
+  voxels_per_side: 16
+  voxel_size: 0.125
+  truncation_distance: 0.35
+dense_representation_radius_m: 7.0
+mesh:
+  min_weight: 0.000001
+  integrator_threads: -1
+tsdf:
+  verbosity: 4
+  num_threads: -1
+  interpolation_method: bilinear
+  semantic_integrator:
+    type: MLESemanticIntegrator

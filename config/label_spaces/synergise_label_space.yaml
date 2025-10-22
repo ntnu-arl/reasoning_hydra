@@ -1,0 +1,49 @@
+---
+total_semantic_labels: 21
+dynamic_labels: []
+invalid_labels: []
+object_labels:
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+  - 6
+  - 7
+  - 8
+  - 9
+  - 10
+  - 11
+  - 12
+  - 13
+  - 14
+  - 15
+  - 16
+  - 17
+  - 18
+  - 19
+  - 20
+surface_places_labels:
+  - 0
+label_names:
+  - {label: 0, name: wall, name_descriptive: a wall}
+  - {label: 1, name: human, name_descriptive: a human}
+  - {label: 2, name: door, name_descriptive: a door}
+  - {label: 3, name: pipe, name_descriptive: a pipe}
+  - {label: 4, name: debris, name_descriptive: a debris}
+  - {label: 5, name: car, name_descriptive: a car}
+  - {label: 6, name: barrel, name_descriptive: a barrel}
+  - {label: 7, name: suitcase, name_descriptive: a suitcase}
+  - {label: 8, name: heating element, name_descriptive: a heating element}
+  - {label: 9, name: chair, name_descriptive: a chair}
+  - {label: 10, name: sofa, name_descriptive: a sofa}
+  - {label: 11, name: desk, name_descriptive: a desk}
+  - {label: 12, name: lamp, name_descriptive: a lamp}
+  - {label: 13, name: box, name_descriptive: a box}
+  - {label: 14, name: stairs, name_descriptive: stairs}
+  - {label: 15, name: pillow, name_descriptive: a pillow}
+  - {label: 16, name: computer, name_descriptive: a computer}
+  - {label: 17, name: pole, name_descriptive: a pole}
+  - {label: 18, name: trashcan, name_descriptive: a trashcan}
+  - {label: 19, name: fan, name_descriptive: a fan}
+  - {label: 20, name: backpack, name_descriptive: a backpack}
