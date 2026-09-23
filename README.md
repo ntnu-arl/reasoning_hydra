@@ -48,7 +48,7 @@ This is a C++ library; launch the EQA system through its ROS packages. The assoc
 Follow the [dataset and floorplan setup](https://github.com/ntnu-arl/hflex_eqa/tree/main#download-hm3d-and-eqa-benchmarks), then run one scene with [`habitat_eqa.launch.yaml`](https://github.com/ntnu-arl/hflex_eqa_ros/blob/main/hflex_eqa_ros/launch/habitat/habitat_eqa.launch.yaml):
 
 ```bash
-ros2 launch hvlm_planner_ros habitat_eqa.launch.yaml \
+ros2 launch hflex_eqa_ros habitat_eqa.launch.yaml \
   scene_file:=/developer/hm3d/val/00800-TEEsavR23oF/TEEsavR23oF.basis.glb \
   question:="What color is the microwave"
 ```
@@ -60,8 +60,8 @@ The ROS launch selects [`config/datasets/habitat.yaml`](config/datasets/habitat.
 On a Jetson Thor mounted on ANYmal, use the [Thor Docker instructions](https://github.com/ntnu-arl/hflex_eqa/tree/main#deploy-on-jetson-thor-and-anymal). The robot must supply the camera topics and transforms configured by [`scene_graph.launch.yaml`](https://github.com/ntnu-arl/hflex_eqa_ros/blob/main/hflex_eqa_ros/launch/scene_graph.launch.yaml). After building and sourcing the workspace, launch the mapping and EQA stacks:
 
 ```bash
-ros2 launch hvlm_planner_ros scene_graph.launch.yaml
-ros2 launch hvlm_planner_ros eqa.launch.yaml \
+ros2 launch hflex_eqa_ros scene_graph.launch.yaml
+ros2 launch hflex_eqa_ros eqa.launch.yaml \
   floorplan_json_path:=/path/to/building_floorplan.json
 ```
 
