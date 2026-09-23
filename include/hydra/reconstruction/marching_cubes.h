@@ -1,6 +1,3 @@
-// Portions of the following code and their modifications are originally from
-// https://github.com/MIT-SPARK/Hydra/tree/main and are licensed under the following
-// license:
 /* -----------------------------------------------------------------------------
  * Copyright 2022 Massachusetts Institute of Technology.
  * All Rights Reserved
@@ -35,12 +32,6 @@
  * Government is authorized to reproduce and distribute reprints for Government
  * purposes notwithstanding any copyright notation herein.
  * -------------------------------------------------------------------------- */
-
-// Copyright (c) 2025, Autonomous Robots Lab, Norwegian University of Science and
-// Technology All rights reserved.
-
-// This source code is licensed under the BSD-style license found in the
-// LICENSE file in the root directory of this source tree.
 #pragma once
 
 #include <spark_dsg/mesh.h>
@@ -49,7 +40,7 @@
 #include <array>
 #include <optional>
 
-#include "hydra/common/common.h"
+#include "hydra/openset/openset_types.h"
 #include "hydra/reconstruction/voxel_types.h"
 
 namespace hydra {
@@ -60,11 +51,12 @@ struct SdfPoint {
   float distance;
   float weight;
   Eigen::Vector3f pos;
-  Color color;
+  spark_dsg::Color color;
   std::optional<uint32_t> label;
   std::optional<Eigen::VectorXf> semantic_feature;
   std::optional<uint16_t> panoptic_id;
   OccupancyVoxel* vertex_voxel = nullptr;
+  const TrackingVoxel* tracking_voxel = nullptr;
 };
 
 std::ostream& operator<<(std::ostream& out, const SdfPoint& point);

@@ -35,6 +35,8 @@
 #include "hydra/input/lidar.h"
 
 #include <config_utilities/config_utilities.h>
+#include <config_utilities/factory.h>
+#include <config_utilities/parsing/yaml.h>
 #include <glog/logging.h>
 
 #include <opencv2/core.hpp>
@@ -44,9 +46,34 @@
 #include "hydra/input/sensor_utilities.h"
 
 namespace hydra {
+namespace {
 
-Lidar::Lidar(const Config& config)
-    : Sensor(config),
+static const auto registration =
+    config::RegistrationWithConfig<Sensor, Lidar, Lidar::Config, std::string>("lidar");
+
+}
+
+void declare_config(Lidar::Config& config) {
+  using namespace config;
+  name("Lidar");
+  base<Sensor::Config>(config);
+  field(config.horizontal_resolution, "horizontal_resolution", "points/degrees");
+  field(config.vertical_resolution, "vertical_resolution", "points/degrees");
+  field(config.horizontal_fov, "horizontal_fov", "degrees");
+  field(config.vertical_fov, "vertical_fov", "degrees");
+  field(config.is_asymmetric, "is_asymmetric");
+  if (config.is_asymmetric) {
+    field(config.vertical_fov_top, "vertical_fov_top", "degrees");
+  }
+
+  check(config.horizontal_resolution, GT, 0, "horizontal_resolution");
+  check(config.vertical_resolution, GT, 0, "vertical_resolution");
+  check(config.horizontal_fov, GT, 0, "horizontal_fov");
+  check(config.vertical_fov, GT, 0, "vertical_fov");
+}
+
+Lidar::Lidar(const Config& config, const std::string& name)
+    : Sensor(config, name),
       config_(config::checkValid(config)),
       width_(config_.horizontal_fov / config_.horizontal_resolution),
       height_(config_.vertical_fov / config_.vertical_resolution),
@@ -88,6 +115,8 @@ Lidar::Lidar(const Config& config)
                               .normalized();
 }
 
+float Lidar::getPointDepth(const Eigen::Vector3f& p) const { return p.norm(); }
+
 float Lidar::computeRayDensity(float voxel_size, float depth) const {
   // we want rays per meter... we can do this by computing a virtual focal length
   // compute focal lengths based on percent of spherical image inside 90 degree FOV
@@ -117,7 +146,6 @@ bool Lidar::finalizeRepresentations(InputData& input, bool force_world_frame) co
     return false;
   }
 
-  // TODO(nathan) detect structured
   // TODO(nathan) think about structured points
 
   // TODO(nathan) test
@@ -149,19 +177,39 @@ bool Lidar::finalizeRepresentations(InputData& input, bool force_world_frame) co
     color = 0;
   }
 
+  cv::Mat vertex_image;
+  bool not_structured =
+      (input.vertex_map.rows != width_) || (input.vertex_map.cols != height_);
+  // NOTE(hyungtae) In case the points are not structured, it automatically generates a
+  // vertex image
+  if (not_structured) {
+    vertex_image = cv::Mat(height_, width_, CV_32FC3, cv::Scalar(0.0, 0.0, 0.0));
+  }
+
   auto point_iter = input.vertex_map.begin<cv::Vec3f>();
   auto label_iter = input.label_image.begin<int32_t>();
   size_t num_invalid = 0;
   size_t color_index = 0;
   while (point_iter != input.vertex_map.end<cv::Vec3f>()) {
-    int u, v;
     const auto& p = *point_iter;
     Eigen::Vector3f p_C(p[0], p[1], p[2]);
     if (input.points_in_world_frame) {
       p_C = sensor_T_world * p_C;
     }
 
-    if (!projectPointToImagePlane(p_C, u, v)) {
+    // get float projection in [0, w] x [0, h]
+    float u_coord, v_coord;
+    projectPointToImagePlane(p_C, u_coord, v_coord);
+
+    // NOTE(nathan) typically we take the floor of any projection (which gives us the
+    // pixel the ray falls into). This is not ideal for handling slightly misaligned
+    // point clouds to the image coordinates. Rounding the projected coordinates should
+    // bin the distribution of bearings correctly (and should work like adding a
+    // constant offset to the pixel coordinates)
+    // TODO(nathan) think about PCL implementation
+    int u = std::round(u_coord);
+    int v = std::round(v_coord);
+    if (u < 0 || u >= width_ || v < 0 || v >= height_) {
       ++num_invalid;
       ++point_iter;
       ++label_iter;
@@ -173,10 +221,24 @@ bool Lidar::finalizeRepresentations(InputData& input, bool force_world_frame) co
     input.min_range = std::min(input.min_range, range_m);
     input.max_range = std::max(input.max_range, range_m);
 
-    input.range_image.at<float>(v, u) = p_C.norm();
+    // If the pixel has already been updated with a closer point, skip the procedure
+    // below
+    if (!(input.range_image.at<float>(v, u) == 0.0f ||
+          range_m < input.range_image.at<float>(v, u))) {
+      ++point_iter;
+      ++label_iter;
+      ++color_index;
+      continue;
+    }
+
+    input.range_image.at<float>(v, u) = range_m;
     labels.at<int32_t>(v, u) = *label_iter;
     if (has_color) {
       color.at<cv::Vec3b>(v, u) = input.color_image.at<cv::Vec3b>(color_index);
+    }
+
+    if (not_structured) {
+      vertex_image.at<cv::Vec3f>(v, u) = *point_iter;
     }
 
     ++point_iter;
@@ -190,6 +252,9 @@ bool Lidar::finalizeRepresentations(InputData& input, bool force_world_frame) co
           << " (percent: " << percent_invalid << ")";
   input.label_image = labels;
   input.color_image = color;
+  if (not_structured) {
+    input.vertex_map = vertex_image;
+  }
   return true;
 }
 
@@ -273,5 +338,7 @@ bool Lidar::pointIsInViewFrustum(const Eigen::Vector3f& point_C,
   // check to make sure that we're not in the exluded region
   return !(left_prod <= -inflation_distance && right_prod <= -inflation_distance);
 }
+
+YAML::Node Lidar::dump() const { return config::toYaml(config_); }
 
 }  // namespace hydra

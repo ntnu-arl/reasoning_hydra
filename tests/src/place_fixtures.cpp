@@ -90,7 +90,7 @@ void SingleBlockTestFixture::SetUp() {
   map_config.voxel_size = voxel_size;
   map_config.voxels_per_side = voxels_per_side;
   map_config.truncation_distance = truncation_distance;
-  map = std::make_unique<VolumetricMap>(map_config, false);
+  map = std::make_unique<VolumetricMap>(map_config);
   gvd_layer.reset(new GvdLayer(voxel_size, voxels_per_side));
 
   BlockIndex block_index = BlockIndex::Zero();
@@ -112,7 +112,7 @@ void SingleBlockExtractionTestFixture::SetUp() {
   SingleBlockTestFixture::SetUp();
   setBlockState();
 
-  gvd_integrator.reset(new GvdIntegrator(gvd_config, gvd_layer, nullptr));
+  gvd_integrator.reset(new GvdIntegrator(gvd_config, gvd_layer));
   gvd_integrator->updateFromTsdf(0, map->getTsdfLayer(), true);
   gvd_integrator->updateGvd(0);
 }

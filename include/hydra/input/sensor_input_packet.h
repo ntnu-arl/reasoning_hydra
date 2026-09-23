@@ -1,6 +1,3 @@
-// Portions of the following code and their modifications are originally from
-// https://github.com/MIT-SPARK/Hydra/tree/main and are licensed under the following
-// license:
 /* -----------------------------------------------------------------------------
  * Copyright 2022 Massachusetts Institute of Technology.
  * All Rights Reserved
@@ -35,87 +32,63 @@
  * Government is authorized to reproduce and distribute reprints for Government
  * purposes notwithstanding any copyright notation herein.
  * -------------------------------------------------------------------------- */
-
-// Copyright (c) 2025, Autonomous Robots Lab, Norwegian University of Science and
-// Technology All rights reserved.
-
-// This source code is licensed under the BSD-style license found in the
-// LICENSE file in the root directory of this source tree.
 #pragma once
-
-#include <memory>
-#include <optional>
-#include <string>
-#include <unordered_map>
-#include <utility>
-#include <vector>
-
 #include "hydra/input/input_data.h"
-#include "hydra/utils/pair_hash.h"
 
 namespace hydra {
 
 struct SensorInputPacket {
   using Ptr = std::shared_ptr<SensorInputPacket>;
 
-  explicit SensorInputPacket(uint64_t stamp, size_t sensor_id)
-      : timestamp_ns(stamp), sensor_id(sensor_id) {}
+  explicit SensorInputPacket(uint64_t stamp, const std::string& sensor_name)
+      : timestamp_ns(stamp), sensor_name(sensor_name) {}
 
   virtual ~SensorInputPacket() = default;
 
-  virtual bool fillInputData(InputData& msg) const = 0;
+  bool fillInputData(InputData& msg) const;
 
- public:
   const uint64_t timestamp_ns;
-  const size_t sensor_id;
+  const std::string sensor_name;
   std::string sensor_frame;
+  //! Learned feature for the input data (e.g., CLIP for camera)
+  FeatureVector input_feature;
+
+ protected:
+  virtual bool fillInputDataImpl(InputData& msg) const = 0;
 };
 
 struct ImageInputPacket : public SensorInputPacket {
-  using Ptr = std::shared_ptr<ImageInputPacket>;
+  explicit ImageInputPacket(uint64_t stamp, const std::string& sensor_name);
 
-  using RelationFeature = Eigen::MatrixXf;
-  explicit ImageInputPacket(uint64_t stamp, size_t sensor_id);
-
-  bool fillInputData(InputData& msg) const override;
-
+  //! Color for each pixel
   cv::Mat color;
+  //! Depth for each pixel
   cv::Mat depth;
+  //! Labels for each pixel
   cv::Mat labels;
-  std::optional<cv::Mat> features_mask;
-  std::optional<std::unordered_map<uint16_t, Eigen::VectorXf>> semantic_features;
-  std::optional<Eigen::VectorXf> image_feature;
-  std::optional<PairHashMap> relations;
-  bool color_is_bgr = false;  // Otherwise, color is RGB already.
+  //! Panoptic ids for each pixel
+  std::optional<cv::Mat> panoptic_ids;
+  //! Pixel-wise feature associated with the input image
+  std::optional<cv::Mat> pixelwise_features;
+  //! Features associated with each label
+  FeatureMap<int> label_features;
+  //! Whether or not the input color image is bgr order
+  bool color_is_bgr = false;
+
+ protected:
+  bool fillInputDataImpl(InputData& msg) const override;
 };
 
 struct CloudInputPacket : public SensorInputPacket {
-  explicit CloudInputPacket(uint64_t stamp, size_t sensor_id);
-
-  bool fillInputData(InputData& msg) const override;
+  explicit CloudInputPacket(uint64_t stamp, const std::string& sensor_name);
 
   bool in_world_frame = false;
   cv::Mat points;
   cv::Mat colors;
   cv::Mat labels;
-};
 
-struct EnhancedCloudInputPacket : public SensorInputPacket {
-  using Ptr = std::shared_ptr<EnhancedCloudInputPacket>;
-  explicit EnhancedCloudInputPacket(uint64_t stamp, size_t sensor_id);
-
-  bool fillInputData(InputData& msg) const override;
-
-  bool in_world_frame = false;
-  cv::Mat points;
-  cv::Mat colors;
-  cv::Mat labels;
-  std::vector<std::vector<bool>> valid;
-  Eigen::Isometry3d cam_T_lidar;
-  std::optional<cv::Mat> features_mask;
-  std::optional<std::unordered_map<uint16_t, Eigen::VectorXf>> semantic_features;
-  std::optional<Eigen::VectorXf> image_feature;
-  std::optional<PairHashMap> relations;
+ protected:
+  bool fillInputDataImpl(InputData& msg) const override;
 };
 
 }  // namespace hydra

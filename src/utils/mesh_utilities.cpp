@@ -34,6 +34,10 @@
  * -------------------------------------------------------------------------- */
 #include "hydra/utils/mesh_utilities.h"
 
+#include <pcl/point_types.h>
+#define PCL_NO_PRECOMPILE
+#include <pcl/filters/radius_outlier_removal.h>
+#undef PCL_NO_PRECOMPILE
 #include <spark_dsg/bounding_box_extraction.h>
 
 namespace hydra {
@@ -83,13 +87,12 @@ bool updateObjectGeometry(const spark_dsg::Mesh& mesh,
 void mergeObjectSemanticFeature(const ObjectNodeAttributes& other_attrs,
                                 ObjectNodeAttributes& attrs) {
   if (other_attrs.num_observations > 0 && attrs.num_observations > 0) {
-    attrs.semantic_feature =
-        (attrs.semantic_feature * attrs.num_observations +
-         other_attrs.semantic_feature * other_attrs.num_observations) /
-        (attrs.num_observations + other_attrs.num_observations);
+    attrs.feature = (attrs.feature * attrs.num_observations +
+                     other_attrs.feature * other_attrs.num_observations) /
+                    (attrs.num_observations + other_attrs.num_observations);
     attrs.num_observations += other_attrs.num_observations;
   } else if (other_attrs.num_observations > 0) {
-    attrs.semantic_feature = other_attrs.semantic_feature;
+    attrs.feature = other_attrs.feature;
     attrs.num_observations = other_attrs.num_observations;
   }
 }
@@ -97,12 +100,11 @@ void mergeObjectSemanticFeature(const ObjectNodeAttributes& other_attrs,
 void updateObjectSemanticFeature(const Eigen::VectorXf& semantic_feature,
                                  ObjectNodeAttributes& attrs) {
   if (attrs.num_observations > 0) {
-    attrs.semantic_feature =
-        (attrs.semantic_feature * attrs.num_observations + semantic_feature) /
-        (attrs.num_observations + 1);
+    attrs.feature = (attrs.feature * attrs.num_observations + semantic_feature) /
+                    (attrs.num_observations + 1);
     ++attrs.num_observations;
   } else {
-    attrs.semantic_feature = semantic_feature;
+    attrs.feature = semantic_feature;
     attrs.num_observations = 1;
   }
 }
@@ -115,47 +117,40 @@ MeshLayer::Ptr getActiveMesh(const MeshLayer& mesh_layer,
     if (archived_set.count(block)) {
       continue;
     }
-    auto& block_data = mesh_layer.getBlock(block);
-    active_mesh->allocateBlock(block) = block_data;
+
+    active_mesh->allocateBlock(block) = mesh_layer.getBlock(block);
   }
+
   return active_mesh;
 }
 
-void mergeEdges(DynamicSceneGraph& graph,
-                const NodeId& old_node_id,
-                const NodeId& new_node_id,
-                std::unordered_map<NodeId, std::set<NodeId>>& active_edges) {
-  auto it = active_edges[old_node_id].begin();
-  while (it != active_edges[old_node_id].end()) {
-    auto target_id = *it;                      // Copy the target ID
-    it = active_edges[old_node_id].erase(it);  // Erase and get next valid iterator
-
-    // Case when the old node is merged with the target node
-    if (target_id == new_node_id) {
-      graph.removeEdge(old_node_id, target_id);
-      active_edges[target_id].erase(old_node_id);
-      continue;
-    }
-
-    if (graph.hasEdge(old_node_id, target_id)) {
-      auto edge = graph.getEdge(old_node_id, target_id).info->clone();
-      edge->setNewId(old_node_id, new_node_id);
-      if (graph.hasEdge(new_node_id, target_id)) {
-        auto new_edge = graph.getEdge(new_node_id, target_id).info->clone();
-        new_edge->merge(*edge);
-        graph.setEdgeAttributes(new_node_id, target_id, std::move(new_edge));
-      } else {
-        graph.insertEdge(new_node_id, target_id, std::move(edge));
-      }
-
-      graph.removeEdge(old_node_id, target_id);
-    }
-
-    active_edges[target_id].erase(old_node_id);
-    if (graph.hasEdge(target_id, new_node_id)) {
-      active_edges[target_id].insert(new_node_id);
-      active_edges[new_node_id].insert(target_id);
-    }
+BoundingBox fitBoxToFilteredMesh(const Mesh& mesh,
+                                 BoundingBox::Type type,
+                                 int inlier_min_neighbors,
+                                 double inlier_search_radius) {
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>());
+  for (const auto& vertex : mesh.points) {
+    auto& p = cloud->emplace_back();
+    p.x = vertex[0];
+    p.y = vertex[1];
+    p.z = vertex[2];
   }
+
+  pcl::RadiusOutlierRemoval<pcl::PointXYZ> filter;
+  filter.setMinNeighborsInRadius(inlier_min_neighbors);
+  filter.setRadiusSearch(inlier_search_radius);
+  filter.setInputCloud(cloud);
+
+  pcl::Indices valid_list;
+  filter.filter(valid_list);
+
+  std::vector<size_t> mesh_connections(valid_list.begin(), valid_list.end());
+  if (mesh_connections.empty()) {
+    return {};
+  }
+
+  const BoundingBox::MeshAdaptor adaptor(mesh, &mesh_connections);
+  return BoundingBox(adaptor, type);
 }
+
 }  // namespace hydra

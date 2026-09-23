@@ -45,6 +45,8 @@ TEST(PoseGraphFromOdom, GraphBuildingCorrect) {
   test::ConfigGuard guard;
 
   PoseGraphFromOdom::Config config;
+  config.min_pose_separation = 0.0;
+  config.min_time_separation_s = 0.0;
   PoseGraphFromOdom tracker(config);
 
   Eigen::Isometry3d pose = Eigen::Isometry3d::Identity();
@@ -59,8 +61,7 @@ TEST(PoseGraphFromOdom, GraphBuildingCorrect) {
     const auto packet = tracker.update(15u, pose);
     EXPECT_FALSE(packet.external_priors);
     ASSERT_EQ(packet.pose_graphs.size(), 1u);
-    ASSERT_TRUE(packet.pose_graphs.front());
-    const auto& graph = *packet.pose_graphs.front();
+    const auto& graph = packet.pose_graphs.front();
     ASSERT_EQ(graph.nodes.size(), 2u);
     ASSERT_EQ(graph.edges.size(), 1u);
     const auto& source = graph.nodes.at(0);

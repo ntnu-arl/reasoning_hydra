@@ -1,6 +1,3 @@
-// Portions of the following code and their modifications are originally from
-// https://github.com/MIT-SPARK/Hydra/tree/main and are licensed under the following
-// license:
 /* -----------------------------------------------------------------------------
  * Copyright 2022 Massachusetts Institute of Technology.
  * All Rights Reserved
@@ -35,15 +32,10 @@
  * Government is authorized to reproduce and distribute reprints for Government
  * purposes notwithstanding any copyright notation herein.
  * -------------------------------------------------------------------------- */
-
-// Copyright (c) 2025, Autonomous Robots Lab, Norwegian University of Science and
-// Technology All rights reserved.
-
-// This source code is licensed under the BSD-style license found in the
-// LICENSE file in the root directory of this source tree.
 #include "hydra/frontend/mesh_segmenter.h"
 
 #include <glog/logging.h>
+#include <glog/stl_logging.h>
 #include <kimera_pgmo/mesh_delta.h>
 #define PCL_NO_PRECOMPILE
 #include <pcl/segmentation/extract_clusters.h>
@@ -53,6 +45,7 @@
 #include <config_utilities/types/enum.h>
 #include <config_utilities/validation.h>
 #include <spark_dsg/bounding_box_extraction.h>
+#include <spark_dsg/printing.h>
 
 #include "hydra/common/global_info.h"
 #include "hydra/common/semantic_color_map.h"
@@ -69,10 +62,7 @@ using timing::ScopedTimer;
 void declare_config(MeshSegmenter::Config& config) {
   using namespace config;
   name("MeshSegmenterConfig");
-  field<CharConversion>(config.prefix, "prefix");
-  // TODO(nathan) string to number conversion
   field(config.layer_id, "layer_id");
-  field(config.active_index_horizon_m, "active_index_horizon_m");
   field(config.cluster_tolerance, "cluster_tolerance");
   field(config.min_cluster_size, "min_cluster_size");
   field(config.max_cluster_size, "max_cluster_size");
@@ -82,12 +72,6 @@ void declare_config(MeshSegmenter::Config& config) {
               {spark_dsg::BoundingBox::Type::AABB, "AABB"},
               {spark_dsg::BoundingBox::Type::OBB, "OBB"},
               {spark_dsg::BoundingBox::Type::RAABB, "RAABB"}});
-  config.labels = GlobalInfo::instance().getLabelSpaceConfig().object_labels;
-  enum_field(config.edge_fusion_mode,
-             "edge_fusion_mode",
-             {{EdgeFusionMode::AVERAGE, "AVERAGE"},
-              {EdgeFusionMode::FIRST, "FIRST"},
-              {EdgeFusionMode::LAST, "LAST"}});
   field(config.timer_namespace, "timer_namespace");
   field(config.sinks, "sinks");
 }
@@ -131,37 +115,7 @@ inline bool nodesMatch(const Cluster& cluster, const SceneGraphNode& node) {
       cluster.centroid);
 }
 
-std::vector<size_t> getActiveIndices(const kimera_pgmo::MeshDelta& delta,
-                                     const std::optional<Eigen::Vector3d>& pos,
-                                     double horizon_m) {
-  const auto indices = delta.getActiveIndices();
-
-  std::vector<size_t> active;
-  active.reserve(indices->size());
-  if (!pos) {
-    for (const auto& idx : *indices) {
-      active.push_back(idx - delta.vertex_start);
-    }
-
-    return active;
-  }
-
-  const Eigen::Vector3d root_pos = *pos;
-  for (const size_t idx : *indices) {
-    const auto delta_idx = delta.getLocalIndex(idx);
-    const auto& p = delta.vertex_updates->at(delta_idx);
-    const Eigen::Vector3d vertex_pos(p.x, p.y, p.z);
-    if ((vertex_pos - root_pos).norm() < horizon_m) {
-      active.push_back(delta_idx);
-    }
-  }
-
-  VLOG(2) << "[Mesh Segmenter] Active indices: " << indices->size()
-          << " (used: " << active.size() << ")";
-  return active;
-}
-
-LabelIndices getLabelIndices(const MeshSegmenter::Config& config,
+LabelIndices getLabelIndices(const std::set<uint32_t>& desired_labels,
                              const kimera_pgmo::MeshDelta& delta,
                              const std::vector<size_t>& indices) {
   CHECK(delta.hasSemantics());
@@ -171,13 +125,13 @@ LabelIndices getLabelIndices(const MeshSegmenter::Config& config,
   std::set<uint32_t> seen_labels;
   for (const auto idx : indices) {
     if (static_cast<size_t>(idx) >= labels.size()) {
-      LOG(ERROR) << "bad index " << idx << "(of " << labels.size() << ")";
+      LOG(ERROR) << "bad index " << idx << " (of " << labels.size() << ")";
       continue;
     }
 
     const auto label = labels[idx];
     seen_labels.insert(label);
-    if (!config.labels.count(label)) {
+    if (!desired_labels.count(label)) {
       continue;
     }
 
@@ -213,9 +167,6 @@ Clusters findClusters(const MeshSegmenter::Config& config,
   estimator.extract(cluster_indices);
 
   Clusters clusters;
-  std::unordered_map<uint16_t, size_t> cluster_panoptic_ids;
-  uint16_t max_panoptic_id = 0;
-  size_t max_panoptic_count = 0;
   clusters.resize(cluster_indices.size());
   for (size_t k = 0; k < clusters.size(); ++k) {
     auto& cluster = clusters.at(k);
@@ -263,48 +214,61 @@ Clusters findClusters(const MeshSegmenter::Config& config,
         cluster.semantic_feature =
             cluster.semantic_feature.value() / num_valid_features;
       }
-    }
-
-    if (delta.hasPanopticIDs() && max_panoptic_count > 0) {
-      cluster.panoptic_id = max_panoptic_id;
+      if (delta.hasPanopticIDs() && max_panoptic_count > 0) {
+        cluster.panoptic_id = max_panoptic_id;
+      }
     }
   }
 
   return clusters;
 }
 
-MeshSegmenter::MeshSegmenter(const Config& config)
+// TODO(nathan) move node ID to not be here
+MeshSegmenter::MeshSegmenter(const Config& config, const std::set<uint32_t>& labels)
     : config(config::checkValid(config)),
-      next_node_id_(config.prefix, 0),
+      next_node_id_('O', 0),
+      labels_(labels),
       sinks_(Sink::instantiate(config.sinks)) {
-  VLOG(2) << "[Mesh Segmenter] using labels: " << printLabels(config.labels);
-  for (const auto& label : config.labels) {
+  VLOG(2) << "[Mesh Segmenter] using labels: " << printLabels(labels_);
+  for (const auto& label : labels_) {
     active_nodes_[label] = std::set<NodeId>();
   }
 }
 
+std::vector<size_t> getActiveIndices(const kimera_pgmo::MeshDelta& delta) {
+  const auto active = delta.getActiveIndices();
+  if (!active) {
+    return {};
+  }
+
+  std::vector<size_t> indices;
+  for (const auto& idx : *active) {
+    indices.push_back(delta.getLocalIndex(idx));
+  }
+
+  return indices;
+}
+
 LabelClusters MeshSegmenter::detect(uint64_t timestamp_ns,
-                                    const kimera_pgmo::MeshDelta& delta,
-                                    const std::optional<Eigen::Vector3d>& pos) {
+                                    const kimera_pgmo::MeshDelta& delta) {
   const auto timer_name = config.timer_namespace + "_detection";
   ScopedTimer timer(timer_name, timestamp_ns, true, 1, false);
-
-  const auto indices = getActiveIndices(delta, pos, config.active_index_horizon_m);
-
   LabelClusters label_clusters;
+
+  const auto indices = getActiveIndices(delta);
   if (indices.empty()) {
     VLOG(2) << "[Mesh Segmenter] No active indices in mesh";
     return label_clusters;
   }
 
-  const auto label_indices = getLabelIndices(config, delta, indices);
+  const auto label_indices = getLabelIndices(labels_, delta, indices);
   if (label_indices.empty()) {
     VLOG(2) << "[Mesh Segmenter] No vertices found matching desired labels";
     Sink::callAll(sinks_, timestamp_ns, delta, indices, label_indices);
     return label_clusters;
   }
 
-  for (const auto label : config.labels) {
+  for (const auto label : labels_) {
     if (!label_indices.count(label)) {
       continue;
     }
@@ -324,221 +288,102 @@ LabelClusters MeshSegmenter::detect(uint64_t timestamp_ns,
   return label_clusters;
 }
 
-void MeshSegmenter::archiveOldNodes(const DynamicSceneGraph& graph,
-                                    size_t num_archived_vertices) {
-  std::set<NodeId> archived;
-  for (const auto& label : config.labels) {
-    std::list<NodeId> removed_nodes;
-    for (const auto& node_id : active_nodes_.at(label)) {
-      if (!graph.hasNode(node_id)) {
-        removed_nodes.push_back(node_id);
-        continue;
-      }
+bool updateIndices(const kimera_pgmo::MeshDelta& delta, std::list<size_t>& indices) {
+  const auto num_archived_vertices = delta.getTotalArchivedVertices();
 
+  bool is_active = false;
+  auto iter = indices.begin();
+  while (iter != indices.end()) {
+    // drop any previously removed indices
+    if (delta.deleted_indices.count(*iter)) {
+      iter = indices.erase(iter);
+      continue;
+    }
+
+    // TODO(nathan) technically this should always succeed
+    auto map_iter = delta.prev_to_curr.find(*iter);
+    if (map_iter != delta.prev_to_curr.end()) {
+      *iter = map_iter->second;
+    }
+
+    // we check whether the vertex is active AFTER being remapped
+    is_active |= *iter >= num_archived_vertices;
+    ++iter;
+  }
+
+  return is_active;
+}
+
+void MeshSegmenter::updateOldNodes(const kimera_pgmo::MeshDelta& delta,
+                                   DynamicSceneGraph& graph) {
+  for (auto& [label, label_nodes] : active_nodes_) {
+    auto iter = label_nodes.begin();
+    while (iter != label_nodes.end()) {
+      const auto node_id = *iter;
       auto& attrs = graph.getNode(node_id).attributes<ObjectNodeAttributes>();
-      bool is_active = false;
-      for (const auto index : attrs.mesh_connections) {
-        if (index >= num_archived_vertices) {
-          is_active = true;
-          break;
-        }
+
+      // remap and prune mesh connections
+      VLOG(20) << "Updating node " << NodeSymbol(node_id).str() << " with connections "
+               << attrs.mesh_connections;
+      const auto is_active = updateIndices(delta, attrs.mesh_connections);
+      VLOG(20) << "After update: " << attrs.mesh_connections << std::boolalpha
+               << " (active: " << is_active << ")";
+      if (attrs.mesh_connections.size() < config.min_cluster_size) {
+        graph.removeNode(node_id);
+        iter = label_nodes.erase(iter);
+        continue;
       }
 
       attrs.is_active = is_active;
       if (!attrs.is_active) {
-        removed_nodes.push_back(node_id);
+        iter = label_nodes.erase(iter);
+      } else {
+        ++iter;
       }
     }
+  }
 
-    for (const auto& node_id : removed_nodes) {
-      active_nodes_[label].erase(node_id);
-      if (active_edges_.count(node_id) && !graph.hasNode(node_id)) {
-        active_edges_.erase(node_id);
-        for (auto& [source_id, targets] : active_edges_) {
-          if (targets.count(node_id)) {
-            targets.erase(node_id);
-          }
-        }
-      }
-    }
+  for (const auto& [label, label_nodes] : active_nodes_) {
+    VLOG(10) << "Active nodes for label " << label << ": "
+             << displayNodeSymbolContainer(label_nodes);
   }
 }
 
 void MeshSegmenter::updateGraph(uint64_t timestamp_ns,
+                                const kimera_pgmo::MeshDelta& active,
                                 const LabelClusters& clusters,
-                                size_t num_archived_vertices,
-                                DynamicSceneGraph& graph,
-                                const std::optional<PairHashMap>& relations) {
-  // Update the graph with the new clusters
-  ScopedTimer timer(config.timer_namespace + "_graph_update_objects", timestamp_ns);
-  archiveOldNodes(graph, num_archived_vertices);
-
-  std::unordered_map<NodeId, uint16_t> node_to_panoptic_id;
+                                DynamicSceneGraph& graph) {
+  ScopedTimer timer(config.timer_namespace + "_graph_update", timestamp_ns);
+  updateOldNodes(active, graph);
+  if (!graph.hasMesh()) {
+    LOG(ERROR) << "Unable to update graph without mesh!";
+    return;
+  }
 
   for (auto&& [label, clusters_for_label] : clusters) {
     for (const auto& cluster : clusters_for_label) {
       bool matches_prev_node = false;
+      std::vector<NodeId> nodes_not_in_graph;
       for (const auto& prev_node_id : active_nodes_.at(label)) {
         const auto& prev_node = graph.getNode(prev_node_id);
         if (nodesMatch(cluster, prev_node)) {
           updateNodeInGraph(graph, cluster, prev_node, timestamp_ns);
           matches_prev_node = true;
-          if (cluster.panoptic_id) {
-            node_to_panoptic_id[prev_node_id] = cluster.panoptic_id.value();
-          }
           break;
         }
       }
 
       if (!matches_prev_node) {
         addNodeToGraph(graph, cluster, label, timestamp_ns);
-        if (cluster.panoptic_id) {
-          node_to_panoptic_id[next_node_id_ - 1] = cluster.panoptic_id.value();
-        }
       }
-
-      mergeActiveNodes(
-          graph, label, cluster.semantic_feature.has_value(), node_to_panoptic_id);
-    }
-  }
-
-  // Update the graph with possible new edge features
-  if (relations) {
-    for (auto&& [label, clusters_for_label] : clusters) {
-      for (const auto& cluster : clusters_for_label) {
-        const auto& subject_panoptic_id = cluster.panoptic_id;
-        if (!subject_panoptic_id) {
-          continue;
-        }
-        bool matches_prev_node = false;
-        NodeId subject_node_id;
-        for (const auto& prev_node_id : active_nodes_.at(label)) {
-          const auto& prev_node = graph.getNode(prev_node_id);
-          if (nodesMatch(cluster, prev_node)) {
-            matches_prev_node = true;
-            subject_node_id = prev_node_id;
-            break;
-          }
-        }
-        if (!matches_prev_node) {
-          continue;
-        }
-        for (const auto& [object_label, object_clusters] : clusters) {
-          for (const auto& object_cluster : object_clusters) {
-            const auto& object_panoptic_id = object_cluster.panoptic_id;
-            if (!object_panoptic_id) {
-              continue;
-            }
-            if (*subject_panoptic_id == *object_panoptic_id) {
-              continue;
-            }
-            const auto subject_object_pair =
-                std::make_pair(*subject_panoptic_id, *object_panoptic_id);
-            if (!relations.value().count(subject_object_pair)) {
-              continue;
-            }
-            matches_prev_node = false;
-            NodeId object_node_id;
-            for (const auto& prev_node_id : active_nodes_.at(object_label)) {
-              const auto& prev_node = graph.getNode(prev_node_id);
-              if (nodesMatch(object_cluster, prev_node)) {
-                matches_prev_node = true;
-                object_node_id = prev_node_id;
-                break;
-              }
-            }
-            if (!matches_prev_node) {
-              continue;
-            }
-
-            if (subject_node_id == object_node_id) {
-              continue;
-            }
-
-            const auto& relation = relations.value().at(subject_object_pair);
-            EdgeAttributes::Ptr edge = std::make_unique<EdgeAttributes>(1.0);
-            bool edge_exists = graph.hasEdge(subject_node_id, object_node_id);
-            // Check if edge already exists
-            if (edge_exists) {
-              edge = graph.getEdge(subject_node_id, object_node_id).info->clone();
-              edge->min_prob = 1.0;
-              if (edge->numObservations(subject_node_id) > 0 &&
-                  edge->numObservations(object_node_id) > 0) {
-                // If the edge already exists, we can update the relationship
-                if (config.edge_fusion_mode == EdgeFusionMode::AVERAGE) {
-                  edge->setRelationshipProperty(subject_node_id,
-                                                std::vector<std::string>(),
-                                                std::vector<double>(),
-                                                std::vector<Color>(),
-                                                relation);
-                } else if (config.edge_fusion_mode == EdgeFusionMode::LAST) {
-                  edge.reset(new EdgeAttributes(1.0));
-                  edge->source_id = subject_node_id;
-                  edge->target_id = object_node_id;
-                  edge->min_prob = 1.0;
-                  edge->setRelationshipProperty(subject_node_id,
-                                                std::vector<std::string>(),
-                                                std::vector<double>(),
-                                                std::vector<Color>(),
-                                                relation);
-                }
-              } else {
-                edge->setRelationshipProperty(subject_node_id,
-                                              std::vector<std::string>(),
-                                              std::vector<double>(),
-                                              std::vector<Color>(),
-                                              relation);
-              }
-            } else {
-              edge->source_id = subject_node_id;
-              edge->target_id = object_node_id;
-              edge->min_prob = 1.0;
-              edge->setRelationshipProperty(subject_node_id,
-                                            std::vector<std::string>(),
-                                            std::vector<double>(),
-                                            std::vector<Color>(),
-                                            relation);
-            }
-
-            VLOG(1)
-                << "[Mesh segmenter] Num observations between: "
-                << graph.getNode(subject_node_id)
-                       .attributes<ObjectNodeAttributes>()
-                       .name
-                << " and "
-                << graph.getNode(object_node_id).attributes<ObjectNodeAttributes>().name
-                << " is " << edge->numObservations(subject_node_id);
-            bool success = false;
-            if (edge_exists) {
-              success = graph.setEdgeAttributes(
-                  subject_node_id, object_node_id, std::move(edge));
-            } else {
-              success =
-                  graph.insertEdge(subject_node_id, object_node_id, std::move(edge));
-            }
-            if (success) {
-              if (active_edges_.count(subject_node_id)) {
-                active_edges_[subject_node_id].insert(object_node_id);
-              } else {
-                active_edges_[subject_node_id] = std::set<NodeId>{object_node_id};
-              }
-            } else {
-              LOG(ERROR) << "Failed to update edge attributes for relation: "
-                         << subject_panoptic_id.value() << " -> "
-                         << object_panoptic_id.value();
-            }
-          }
-        }
-      }
+      mergeActiveNodes(graph, label, cluster.semantic_feature.has_value());
     }
   }
 }
 
-void MeshSegmenter::mergeActiveNodes(
-    DynamicSceneGraph& graph,
-    uint32_t label,
-    bool semantic_feature,
-    std::unordered_map<NodeId, uint16_t>& node_to_panoptic_id) {
+void MeshSegmenter::mergeActiveNodes(DynamicSceneGraph& graph,
+                                     uint32_t label,
+                                     bool semantic_feature) {
   std::set<NodeId> merged_nodes;
 
   auto& curr_active = active_nodes_.at(label);
@@ -572,10 +417,6 @@ void MeshSegmenter::mergeActiveNodes(
       if (semantic_feature) {
         mergeObjectSemanticFeature(other_attrs, attrs);
       }
-      if (active_edges_.count(other_id)) {
-        mergeEdges(graph, other_id, node_id, active_edges_);
-      }
-
       graph.removeNode(other_id);
       merged_nodes.insert(other_id);
     }
@@ -627,29 +468,14 @@ void MeshSegmenter::addNodeToGraph(DynamicSceneGraph& graph,
   attrs->last_update_time_ns = timestamp;
   attrs->is_active = true;
   attrs->semantic_label = label;
-  attrs->semantic_feature = cluster.semantic_feature.value_or(Eigen::VectorXf::Zero(0));
+  attrs->feature = cluster.semantic_feature.value_or(Eigen::VectorXf::Zero(0));
   if (cluster.semantic_feature) {
     attrs->num_observations = 1;
-  }
-  attrs->name = NodeSymbol(next_node_id_).getLabel();
-  const auto& label_to_name = GlobalInfo::instance().getLabelToNameMap();
-  auto iter = label_to_name.find(label);
-  if (iter != label_to_name.end()) {
-    attrs->name = iter->second;
   } else {
-    VLOG(2) << "Missing semantic label from map: " << std::to_string(label);
+    attrs->num_observations = 0;
   }
-
   attrs->mesh_connections.insert(
       attrs->mesh_connections.begin(), cluster.indices.begin(), cluster.indices.end());
-
-  auto label_map = GlobalInfo::instance().getSemanticColorMap();
-  if (!label_map || !label_map->isValid()) {
-    label_map = GlobalInfo::instance().setRandomColormap();
-    CHECK(label_map != nullptr);
-  }
-
-  attrs->color = label_map->getColorFromLabel(label);
 
   updateObjectGeometry(*graph.mesh(), *attrs, nullptr, config.bounding_box_type);
 

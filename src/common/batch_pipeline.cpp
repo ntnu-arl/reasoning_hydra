@@ -37,25 +37,28 @@
 #include <glog/logging.h>
 #include <glog/stl_logging.h>
 
+#include "hydra/backend/update_buildings_functor.h"
 #include "hydra/backend/update_functions.h"
-#include "hydra/backend/update_rooms_buildings_functor.h"
+#include "hydra/backend/update_rooms_functor.h"
 #include "hydra/common/shared_module_state.h"
 #include "hydra/reconstruction/mesh_integrator.h"
 
 namespace hydra {
 
-using VFConfig = config::VirtualConfig<FrontendModule>;
-using RFConfig = RoomsFunctorConfig;
+using VFConfig = config::VirtualConfig<GraphBuilder>;
+using RFConfig = RoomFinderConfig;
 
 BatchPipeline::BatchPipeline(const PipelineConfig& config, int robot_id) {
-  GlobalInfo::init(config, robot_id, true);
+  GlobalInfo::init(config, robot_id);
 }
 
 BatchPipeline::~BatchPipeline() {}
 
-DynamicSceneGraph::Ptr BatchPipeline::construct(const VFConfig& frontend_config,
-                                                VolumetricMap& map,
-                                                const RFConfig* room_config) const {
+DynamicSceneGraph::Ptr BatchPipeline::construct(
+    const VFConfig& frontend_config,
+    VolumetricMap& map,
+    const RFConfig* room_config,
+    const KMeansConfig* kmeans_config) const {
   if (!map.hasSemantics()) {
     return nullptr;
   }
@@ -67,25 +70,25 @@ DynamicSceneGraph::Ptr BatchPipeline::construct(const VFConfig& frontend_config,
   auto dsg = GlobalInfo::instance().createSharedDsg();
   auto graph = dsg->graph->clone();
   auto state = std::make_shared<SharedModuleState>();
-  auto module = frontend_config.create(dsg, state, LogSetup::Ptr());
-  const auto queue = module->getQueue();
+  auto frontend = frontend_config.create(dsg, state);
 
   // TODO(nathan) this is a little sketchy given the lack of pose info
-  auto msg = std::make_shared<ReconstructionOutput>();
+  auto msg = std::make_shared<ActiveWindowOutput>();
   msg->setMap(map);
-  queue->push(msg);
+  frontend->queue()->push(msg);
 
-  if (!module->spinOnce()) {
+  if (!frontend->spinOnce()) {
     return nullptr;
   }
 
   if (room_config) {
     // TODO(nathan) unmerged graph is annoying
-    UpdateRoomsFunctor functor(*room_config);
+    UpdateRoomsFunctor functor(UpdateRoomsFunctor::Config{
+        *room_config, *kmeans_config, spark_dsg::DsgLayers::PLACES});
     UpdateInfo::ConstPtr info(new UpdateInfo);
     functor.call(*graph, *dsg, info);
 
-    UpdateBuildingsFunctor bfunctor(Color(), -1);
+    UpdateBuildingsFunctor bfunctor(UpdateBuildingsFunctor::Config{0});
     bfunctor.call(*graph, *dsg, info);
   }
 

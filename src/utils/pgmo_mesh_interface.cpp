@@ -67,27 +67,11 @@ pcl::PointXYZRGBA PgmoMeshLayerInterface::getActiveVertex(size_t index) const {
   point.b = color.b;
   point.a = color.a;
   return point;
-}
+};
 
 std::optional<uint32_t> PgmoMeshLayerInterface::getActiveSemantics(size_t index) const {
   if (index < active_mesh_->labels.size()) {
     return active_mesh_->labels[index];
-  }
-  return std::nullopt;
-}
-
-std::optional<Eigen::VectorXf> PgmoMeshLayerInterface::getActiveSemanticFeatures(
-    size_t index) const {
-  if (index < active_mesh_->semantic_features.size()) {
-    return active_mesh_->semantic_features[index];
-  }
-  return std::nullopt;
-}
-
-std::optional<uint16_t> PgmoMeshLayerInterface::getActivePanopticID(
-    size_t index) const {
-  if (index < active_mesh_->panoptic_ids.size()) {
-    return active_mesh_->panoptic_ids[index];
   }
   return std::nullopt;
 }
@@ -111,6 +95,20 @@ bool PgmoMeshLayerInterface::hasPanopticIDs() const {
     return false;
   }
   return mesh_.begin()->has_panoptic_ids;
+}
+std::optional<Eigen::VectorXf> PgmoMeshLayerInterface::getActiveSemanticFeatures(
+    size_t index) const {
+  if (index < active_mesh_->semantic_features.size()) {
+    return active_mesh_->semantic_features[index];
+  }
+  return std::nullopt;
+}
+std::optional<uint16_t> PgmoMeshLayerInterface::getActivePanopticID(
+    size_t index) const {
+  if (index < active_mesh_->panoptic_ids.size()) {
+    return active_mesh_->panoptic_ids[index];
+  }
+  return std::nullopt;
 }
 
 kimera_pgmo::MeshInterface::Ptr PgmoMeshLayerInterface::clone() const {
@@ -141,7 +139,15 @@ pcl::PointXYZRGBA PgmoMeshInterface::getActiveVertex(size_t index) const {
   point.b = color.b;
   point.a = color.a;
   return point;
+};
+
+bool PgmoMeshInterface::hasSemantics() const { return mesh_.has_labels; }
+
+bool PgmoMeshInterface::hasSemanticFeatures() const {
+  return mesh_.has_semantic_features;
 }
+
+bool PgmoMeshInterface::hasPanopticIDs() const { return mesh_.has_panoptic_ids; }
 
 std::optional<uint32_t> PgmoMeshInterface::getActiveSemantics(size_t index) const {
   if (index < mesh_.labels.size()) {
@@ -153,25 +159,17 @@ std::optional<uint32_t> PgmoMeshInterface::getActiveSemantics(size_t index) cons
 std::optional<Eigen::VectorXf> PgmoMeshInterface::getActiveSemanticFeatures(
     size_t index) const {
   if (index < mesh_.semantic_features.size()) {
-    return mesh_.semantic_features[index];
+    return mesh_.semanticFeature(index);
   }
   return std::nullopt;
 }
 
 std::optional<uint16_t> PgmoMeshInterface::getActivePanopticID(size_t index) const {
   if (index < mesh_.panoptic_ids.size()) {
-    return mesh_.panoptic_ids[index];
+    return mesh_.panopticID(index);
   }
   return std::nullopt;
 }
-
-bool PgmoMeshInterface::hasSemantics() const { return mesh_.has_labels; }
-
-bool PgmoMeshInterface::hasSemanticFeatures() const {
-  return mesh_.has_semantic_features;
-}
-
-bool PgmoMeshInterface::hasPanopticIDs() const { return mesh_.has_panoptic_ids; }
 
 kimera_pgmo::MeshInterface::Ptr PgmoMeshInterface::clone() const {
   return std::make_shared<PgmoMeshInterface>(*this);

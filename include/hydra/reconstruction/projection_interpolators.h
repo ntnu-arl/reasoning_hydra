@@ -31,61 +31,30 @@
 //
 // See https://github.com/ethz-asl/panoptic_mapping for original code and paper
 //
-// Portions of the following code and their modifications are originally from
-// https://github.com/MIT-SPARK/Hydra/tree/main and are licensed under the following
-// license:
-/* -----------------------------------------------------------------------------
- * Copyright 2022 Massachusetts Institute of Technology.
- * All Rights Reserved
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *
- *  1. Redistributions of source code must retain the above copyright notice,
- *     this list of conditions and the following disclaimer.
- *
- *  2. Redistributions in binary form must reproduce the above copyright notice,
- *     this list of conditions and the following disclaimer in the documentation
- *     and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
- * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
- * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
- * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Research was sponsored by the United States Air Force Research Laboratory and
- * the United States Air Force Artificial Intelligence Accelerator and was
- * accomplished under Cooperative Agreement Number FA8750-19-2-1000. The views
- * and conclusions contained in this document are those of the authors and should
- * not be interpreted as representing the official policies, either expressed or
- * implied, of the United States Air Force or the U.S. Government. The U.S.
- * Government is authorized to reproduce and distribute reprints for Government
- * purposes notwithstanding any copyright notation herein.
- * -------------------------------------------------------------------------- */
-
-// Copyright (c) 2025, Autonomous Robots Lab, Norwegian University of Science and
-// Technology All rights reserved.
-
-// This source code is licensed under the BSD-style license found in the
-// LICENSE file in the root directory of this source tree.
+// Modifications (including work done by Lukas Schmid for Khronos) fall under the same
+// license as Hydra and are subject to the following copyright and disclaimer:
+//
+// Copyright 2022 Massachusetts Institute of Technology.
+// All Rights Reserved
+//
+// Research was sponsored by the United States Air Force Research Laboratory and
+// the United States Air Force Artificial Intelligence Accelerator and was
+// accomplished under Cooperative Agreement Number FA8750-19-2-1000. The views
+// and conclusions contained in this document are those of the authors and should
+// not be interpreted as representing the official policies, either expressed or
+// implied, of the United States Air Force or the U.S. Government. The U.S.
+// Government is authorized to reproduce and distribute reprints for Government
+// purposes notwithstanding any copyright notation herein.
 #pragma once
 
-#include <config_utilities/factory.h>
+#include <spark_dsg/color.h>
 
-#include <Eigen/Core>
 #include <memory>
 #include <opencv2/core/mat.hpp>
+#include <optional>
 #include <string>
-#include <unordered_map>
-#include <vector>
 
-#include "hydra/common/common_types.h"
+#include "hydra/openset/openset_types.h"
 
 namespace hydra {
 
@@ -124,20 +93,19 @@ class ProjectionInterpolator {
   /**
    * @brief Compute the depth based on the provided weights.
    * @param range_image Range image as 32FC1 to interpolate in.
-   * @return if the interpolation was successful.
+   * @return float The interpolated range value.
    */
-  virtual bool InterpolateRange(const cv::Mat& range_image,
-                                const InterpolationWeights& weights,
-                                float& d_to_surface,
-                                const float min_range = 0.0f) const = 0;
+  virtual float interpolateRange(const cv::Mat& range_image,
+                                 const InterpolationWeights& weights) const = 0;
 
   /**
    * @brief Compute the color based on the provided weights.
    * @param color_image Color image as RGB8 to interpolate in.
+   * @param w Interpolation weights (abbreviated to w for formatting)
    * @return Color The interpolated color value.
    */
-  virtual Color interpolateColor(const cv::Mat& color_image,
-                                 const InterpolationWeights& weights) const = 0;
+  virtual spark_dsg::Color interpolateColor(const cv::Mat& color_img,
+                                            const InterpolationWeights& w) const = 0;
 
   /**
    * @brief Compute the semantic id based on the provided weights.
@@ -149,22 +117,38 @@ class ProjectionInterpolator {
 
   /**
    * @brief Compute the semantic features based on the provided weights.
-   * @param features Features tensor to interpolate in.
-   * @return Eigen::VectorXf The interpolated features
+   * @param panoptic_image Panoptic id image as 16UC1 to interpolate in.
+   * @param semantic_features Features associated with each semantic id.
+   * @param weights Interpolation weights
+   * @return FeatureVector The interpolated features
    */
-  virtual std::optional<Eigen::VectorXf> interpolateFeatures(
-      const std::optional<cv::Mat>& features_mask,
-      std::optional<std::unordered_map<uint16_t, Eigen::VectorXf>> semantic_features,
+  virtual std::optional<FeatureVector> interpolateFeatures(
+      const std::optional<cv::Mat>& panoptic_image,
+      FeatureMap<int> semantic_features,
       const InterpolationWeights& weights) const = 0;
 
   /**
    * @brief Compute the panoptic id based on the provided weights.
-   * @param features_mask Features ids
-   * @param relations Relationship features
+   * @param panoptic_image Panoptic id image as 16UC1 to interpolate in.
+   * @param weights Interpolation weights
+   * @return std::optional<uint16_t> The interpolated panoptic ID value.
    */
   virtual std::optional<uint16_t> interpolatePanoptic(
-      const std::optional<cv::Mat>& features_mask,
+      const std::optional<cv::Mat>& panoptic_image,
       const InterpolationWeights& weights) const = 0;
+
+  /**
+   * @brief Compute the pixel-wise feature based on the provided weights.
+   * @param pixelwise_feature_image Pixel-wise feature image as CV_32FCn to interpolate
+   * in.
+   * @param weights Interpolation weights
+   * @return std::optional<FeatureVector> The interpolated pixel-wise feature value.
+   */
+  virtual std::optional<FeatureVector> interpolatePixelwiseFeature(
+      const std::optional<cv::Mat>& pixelwise_feature_image,
+      const InterpolationWeights& weights,
+      const int orig_height,
+      const int orig_width) const = 0;
 };
 
 /**
@@ -173,34 +157,39 @@ class ProjectionInterpolator {
  */
 class InterpolatorNearest : public ProjectionInterpolator {
  public:
+  struct Config {};
+  explicit InterpolatorNearest(const Config& = Config{}) {}
+
   InterpolationWeights computeWeights(float u,
                                       float v,
                                       const cv::Mat& range_image) const override;
 
-  bool InterpolateRange(const cv::Mat& range_image,
-                        const InterpolationWeights& weights,
-                        float& d_to_surface,
-                        const float min_range = 0.0f) const override;
-
-  Color interpolateColor(const cv::Mat& color_image,
+  float interpolateRange(const cv::Mat& range_image,
                          const InterpolationWeights& weights) const override;
+
+  spark_dsg::Color interpolateColor(const cv::Mat& color_image,
+                                    const InterpolationWeights& weights) const override;
 
   int interpolateID(const cv::Mat& id_image,
                     const InterpolationWeights& weights) const override;
 
-  std::optional<Eigen::VectorXf> interpolateFeatures(
-      const std::optional<cv::Mat>& features_mask,
-      std::optional<std::unordered_map<uint16_t, Eigen::VectorXf>> semantic_features,
+  std::optional<FeatureVector> interpolateFeatures(
+      const std::optional<cv::Mat>& panoptic_image,
+      FeatureMap<int> semantic_features,
       const InterpolationWeights& weights) const override;
 
   std::optional<uint16_t> interpolatePanoptic(
-      const std::optional<cv::Mat>& features_mask,
+      const std::optional<cv::Mat>& panoptic_image,
       const InterpolationWeights& weights) const override;
 
- private:
-  inline static const auto registration_ =
-      config::Registration<ProjectionInterpolator, InterpolatorNearest>("nearest");
+  std::optional<FeatureVector> interpolatePixelwiseFeature(
+      const std::optional<cv::Mat>& pixelwise_feature_image,
+      const InterpolationWeights& weights,
+      const int orig_height,
+      const int orig_width) const override;
 };
+
+void declare_config(InterpolatorNearest::Config& config);
 
 /**
  * @brief Interpolates values using bilinear interpolation. Use computeWeights()
@@ -208,33 +197,39 @@ class InterpolatorNearest : public ProjectionInterpolator {
  */
 class InterpolatorBilinear : public ProjectionInterpolator {
  public:
+  struct Config {};
+  explicit InterpolatorBilinear(const Config& = Config{}) {}
+
   InterpolationWeights computeWeights(float u,
                                       float v,
                                       const cv::Mat& range_image) const override;
 
-  bool InterpolateRange(const cv::Mat& range_image,
-                        const InterpolationWeights& weights,
-                        float& d_to_surface,
-                        const float min_range = 0.0f) const override;
-
-  Color interpolateColor(const cv::Mat& color_image,
+  float interpolateRange(const cv::Mat& range_image,
                          const InterpolationWeights& weights) const override;
+
+  spark_dsg::Color interpolateColor(const cv::Mat& color_image,
+                                    const InterpolationWeights& weights) const override;
+
   int interpolateID(const cv::Mat& id_image,
                     const InterpolationWeights& weights) const override;
 
-  std::optional<Eigen::VectorXf> interpolateFeatures(
-      const std::optional<cv::Mat>& features_mask,
-      std::optional<std::unordered_map<uint16_t, Eigen::VectorXf>> semantic_features,
+  std::optional<FeatureVector> interpolateFeatures(
+      const std::optional<cv::Mat>& panoptic_image,
+      FeatureMap<int> semantic_features,
       const InterpolationWeights& weights) const override;
 
   std::optional<uint16_t> interpolatePanoptic(
-      const std::optional<cv::Mat>& features_mask,
+      const std::optional<cv::Mat>& panoptic_image,
       const InterpolationWeights& weights) const override;
 
- private:
-  inline static const auto registration_ =
-      config::Registration<ProjectionInterpolator, InterpolatorBilinear>("bilinear");
+  std::optional<FeatureVector> interpolatePixelwiseFeature(
+      const std::optional<cv::Mat>& pixelwise_feature_image,
+      const InterpolationWeights& weights,
+      const int orig_height,
+      const int orig_width) const override;
 };
+
+void declare_config(InterpolatorBilinear::Config& config);
 
 /**
  * @brief Use bilinear interpolation if the range values are all close,
@@ -244,35 +239,45 @@ class InterpolatorBilinear : public ProjectionInterpolator {
  */
 class InterpolatorAdaptive : public InterpolatorBilinear {
  public:
+  struct Config {
+    float max_depth_difference_m = 0.2;
+  } const config;
+
+  explicit InterpolatorAdaptive(const Config& config);
+
   InterpolationWeights computeWeights(float u,
                                       float v,
                                       const cv::Mat& range_image) const override;
 
-  bool InterpolateRange(const cv::Mat& range_image,
-                        const InterpolationWeights& weights,
-                        float& d_to_surface,
-                        const float min_range = 0.0f) const override;
-
-  Color interpolateColor(const cv::Mat& color_image,
+  float interpolateRange(const cv::Mat& range_image,
                          const InterpolationWeights& weights) const override;
+
+  spark_dsg::Color interpolateColor(const cv::Mat& color_image,
+                                    const InterpolationWeights& weights) const override;
 
   int interpolateID(const cv::Mat& id_image,
                     const InterpolationWeights& weights) const override;
 
-  std::optional<Eigen::VectorXf> interpolateFeatures(
-      const std::optional<cv::Mat>& features_mask,
-      std::optional<std::unordered_map<uint16_t, Eigen::VectorXf>> semantic_features,
+  std::optional<FeatureVector> interpolateFeatures(
+      const std::optional<cv::Mat>& panoptic_image,
+      FeatureMap<int> semantic_features,
       const InterpolationWeights& weights) const override;
 
   std::optional<uint16_t> interpolatePanoptic(
-      const std::optional<cv::Mat>& features_mask,
+      const std::optional<cv::Mat>& panoptic_image,
       const InterpolationWeights& weights) const override;
 
+  std::optional<FeatureVector> interpolatePixelwiseFeature(
+      const std::optional<cv::Mat>& pixelwise_feature_image,
+      const InterpolationWeights& weights,
+      const int orig_height,
+      const int orig_width) const override;
+
  private:
-  inline static const auto registration_ =
-      config::Registration<ProjectionInterpolator, InterpolatorAdaptive>("adaptive");
   const int u_offset_[4] = {0, 0, 1, 1};
   const int v_offset_[4] = {0, 1, 0, 1};
 };
+
+void declare_config(InterpolatorAdaptive::Config& config);
 
 }  // namespace hydra

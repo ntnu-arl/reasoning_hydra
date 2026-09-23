@@ -48,92 +48,34 @@
 #include "hydra/input/sensor.h"
 
 #include <config_utilities/config_utilities.h>
+#include <config_utilities/parsing/yaml.h>
 #include <config_utilities/types/eigen_matrix.h>
 #include <glog/logging.h>
+
+#include <iomanip>
 
 #include "hydra/common/config_utilities.h"
 
 namespace hydra {
 
-SensorExtrinsics::SensorExtrinsics()
-    : SensorExtrinsics(Eigen::Quaterniond::Identity(), Eigen::Vector3d::Zero()) {}
-
-SensorExtrinsics::SensorExtrinsics(const Eigen::Quaterniond& body_R_sensor)
-    : SensorExtrinsics(body_R_sensor, Eigen::Vector3d::Zero()) {}
-
-SensorExtrinsics::SensorExtrinsics(const Eigen::Vector3d& body_p_sensor)
-    : SensorExtrinsics(Eigen::Quaterniond::Identity(), body_p_sensor) {}
-
-SensorExtrinsics::SensorExtrinsics(const Eigen::Quaterniond& _body_R_sensor,
-                                   const Eigen::Vector3d& _body_p_sensor)
-    : body_R_sensor(_body_R_sensor), body_p_sensor(_body_p_sensor) {}
-
-IdentitySensorExtrinsics::IdentitySensorExtrinsics(const Config&)
-    : SensorExtrinsics() {}
-
-ParamSensorExtrinsics::ParamSensorExtrinsics(const Config& config)
-    : SensorExtrinsics(config.body_R_sensor, config.body_p_sensor) {}
-
-KimeraSensorExtrinsics::KimeraSensorExtrinsics(const Config& config)
-    : SensorExtrinsics() {
-  config::checkValid(config);
-  const auto node = YAML::LoadFile(config.sensor_filepath);
-  const auto elements = node["T_BS"]["data"].as<std::vector<double>>();
-  CHECK_EQ(elements.size(), 16u);
-
-  Eigen::Matrix4d body_T_sensor = Eigen::Matrix4d::Identity();
-  for (int r = 0; r < 4; ++r) {
-    for (int c = 0; c < 4; ++c) {
-      body_T_sensor(r, c) = elements.at(4 * r + c);
-    }
-  }
-
-  body_R_sensor = Eigen::Quaterniond(body_T_sensor.block<3, 3>(0, 0)).normalized();
-  body_p_sensor = body_T_sensor.block<3, 1>(0, 3);
-}
-
-Sensor::Sensor(const Config& config)
-    : config(config::checkValid(config)), extrinsics_(config.extrinsics.create()) {
+Sensor::Sensor(const Config& config, const std::string& name)
+    : config(config::checkValid(config)),
+      name(name),
+      extrinsics_(config.extrinsics.create()) {
   CHECK(extrinsics_ != nullptr) << "invalid extrinsics!";
   const Eigen::Isometry3d sensor_body_pose = body_T_sensor();
+  Eigen::IOFormat fmt(6, 0, ", ", "\n", "", "", "[", "]");
   VLOG(1) << "Parsed sensor with extrinsics: " << std::endl
-          << sensor_body_pose.matrix();
+          << std::setfill(' ') << sensor_body_pose.matrix().format(fmt);
 }
 
-void declare_config(IdentitySensorExtrinsics::Config&) {
-  using namespace config;
-  name("IdentitySensorExtrinsics");
-}
-
-void declare_config(ParamSensorExtrinsics::Config& conf) {
-  using namespace config;
-  name("ParamSensorExtrinsics");
-  field<QuaternionConverter>(conf.body_R_sensor, "body_R_sensor");
-  field(conf.body_p_sensor, "body_p_sensor");
-  checkCondition(std::abs(conf.body_R_sensor.norm() - 1.0) < 1.0e-9,
-                 "Quaternion is not normalized");
-}
-
-void declare_config(KimeraSensorExtrinsics::Config& conf) {
-  using namespace config;
-  name("KimeraSensorExtrinsics");
-  field(conf.sensor_filepath, "sensor_filepath");
-  // TODO(nathan) validate file
-}
+YAML::Node Sensor::dump() const { return config::toYaml(config); }
 
 void declare_config(Sensor::Config& conf) {
   using namespace config;
   name("Sensor");
   field(conf.min_range, "min_range", "m");
   field(conf.max_range, "max_range", "m");
-  field(conf.horizontal_resolution, "horizontal_resolution", "points/degrees");
-  field(conf.vertical_resolution, "vertical_resolution", "points/degrees");
-  field(conf.horizontal_fov, "horizontal_fov", "degrees");
-  field(conf.vertical_fov, "vertical_fov", "degrees");
-  field(conf.is_asymmetric, "is_asymmetric");
-  if (conf.is_asymmetric) {
-    field(conf.vertical_fov_top, "vertical_fov_top", "degrees");
-  }
   field(conf.extrinsics, "extrinsics");
   check(conf.min_range, GT, 0.0, "min_range");
   checkCondition(conf.max_range > conf.min_range,

@@ -47,8 +47,6 @@
 // purposes notwithstanding any copyright notation herein.
 #pragma once
 
-#include <config_utilities/factory.h>
-
 #include <vector>
 
 #include "hydra/input/input_data.h"
@@ -77,11 +75,13 @@ class Camera : public Sensor {
     float fy = -1.0;
   };
 
-  explicit Camera(const Config& config);
+  explicit Camera(const Config& config, const std::string& name);
 
   virtual ~Camera() = default;
 
   const Config& getConfig() const { return config_; }
+
+  float getPointDepth(const Eigen::Vector3f& p) const override;
 
   float computeRayDensity(float voxel_size, float depth) const override;
 
@@ -106,14 +106,13 @@ class Camera : public Sensor {
                             float* min_range,
                             float* max_range) const;
 
+  YAML::Node dump() const override;
+
  private:
   const Config config_;
 
   // Pre-computed stored values.
   Eigen::Matrix<float, 4, 3> view_frustum_;  // Top, right, bottom, left plane normals.
-
-  inline static const auto registration_ =
-      config::RegistrationWithConfig<Sensor, Camera, Camera::Config>("camera");
 };
 
 void declare_config(Camera::Config& config);

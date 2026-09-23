@@ -1,6 +1,3 @@
-// Portions of the following code and their modifications are originally from
-// https://github.com/MIT-SPARK/Hydra/tree/main and are licensed under the following
-// license:
 /* -----------------------------------------------------------------------------
  * Copyright 2022 Massachusetts Institute of Technology.
  * All Rights Reserved
@@ -35,22 +32,15 @@
  * Government is authorized to reproduce and distribute reprints for Government
  * purposes notwithstanding any copyright notation herein.
  * -------------------------------------------------------------------------- */
-
-// Copyright (c) 2025, Autonomous Robots Lab, Norwegian University of Science and
-// Technology All rights reserved.
-
-// This source code is licensed under the BSD-style license found in the
-// LICENSE file in the root directory of this source tree.
 #pragma once
 
-#include <iostream>
-#include <limits>
+#include <spark_dsg/color.h>
+
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
-
-#include "hydra/common/common_types.h"
 
 namespace hydra {
 
@@ -58,18 +48,19 @@ namespace hydra {
 class SemanticColorMap {
  public:
   using Ptr = std::unique_ptr<SemanticColorMap>;
-  using ColorSet = std::unordered_set<Color, Color::Hash>;
-  using LabelToColorMap = std::unordered_map<uint32_t, Color>;
-  using ColorToLabelMap = std::unordered_map<Color, uint32_t, Color::Hash>;
+  using ColorSet = std::unordered_set<spark_dsg::Color, spark_dsg::Color::Hash>;
+  using LabelToColorMap = std::unordered_map<uint32_t, spark_dsg::Color>;
+  using ColorToLabelMap =
+      std::unordered_map<spark_dsg::Color, uint32_t, spark_dsg::Color::Hash>;
 
   SemanticColorMap();
 
   explicit SemanticColorMap(const ColorToLabelMap& map,
-                            const Color& unknown_color = {});
+                            const spark_dsg::Color& unknown_color = {});
 
-  std::optional<uint32_t> getLabelFromColor(const Color& color) const;
+  std::optional<uint32_t> getLabelFromColor(const spark_dsg::Color& color) const;
 
-  Color getColorFromLabel(const uint32_t& label) const;
+  spark_dsg::Color getColorFromLabel(const uint32_t& label) const;
 
   size_t getNumLabels() const;
 
@@ -81,10 +72,10 @@ class SemanticColorMap {
 
  public:
   static SemanticColorMap::Ptr randomColors(size_t num_labels,
-                                            const Color& unknown = {});
+                                            const spark_dsg::Color& unknown = {});
 
   static SemanticColorMap::Ptr fromCsv(const std::string& filename,
-                                       const Color& unknown = {},
+                                       const spark_dsg::Color& unknown = {},
                                        char delimiter = ',',
                                        bool skip_first_line = true);
 
@@ -92,7 +83,7 @@ class SemanticColorMap {
   uint32_t max_label_;
   ColorToLabelMap color_to_label_;
   LabelToColorMap label_to_color_;
-  Color unknown_color_;
+  spark_dsg::Color unknown_color_;
 
   mutable ColorSet unknown_colors_;
   mutable std::unordered_set<uint32_t> unknown_labels_;

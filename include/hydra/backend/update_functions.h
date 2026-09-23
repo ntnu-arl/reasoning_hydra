@@ -35,52 +35,47 @@
 #pragma once
 #include <gtsam/nonlinear/Values.h>
 
-#include <list>
-#include <map>
-#include <memory>
-#include <optional>
-#include <vector>
+#include <opencv2/core/mat.hpp>
 
-#include "hydra/common/common.h"
+#include "hydra/backend/merge_proposer.h"
+#include "hydra/common/dsg_types.h"
 #include "hydra/common/shared_dsg_info.h"
+#include "hydra/openset/openset_types.h"
 
-namespace hydra {
-
-struct Merge {
-  NodeId from;
-  NodeId to;
-  Merge remap(const std::map<NodeId, NodeId>& remapping) const;
-};
-
-std::ostream& operator<<(std::ostream& out, const Merge& merge);
-
-inline bool operator==(const Merge& lhs, const Merge& rhs) {
-  return lhs.from == rhs.from && lhs.to == rhs.to;
+namespace kimera_pgmo {
+class DeformationGraph;
 }
 
-using MergeList = std::list<Merge>;
+namespace hydra {
 
 struct UpdateInfo {
   using Ptr = std::shared_ptr<UpdateInfo>;
   using ConstPtr = std::shared_ptr<const UpdateInfo>;
   using LayerMerges = std::map<LayerId, MergeList>;
 
+  uint64_t timestamp_ns = 0;
   const gtsam::Values* places_values = nullptr;
   const gtsam::Values* pgmo_values = nullptr;
   bool loop_closure_detected = false;
-  uint64_t timestamp_ns = 0;
-  //! Whether or not we allow proposing merges during update
-  bool allow_node_merging = false;
   //! External merges (e.g., from GNC)
-  LayerMerges given_merges;
-  const gtsam::Values* complete_agent_values = nullptr;
-  std::optional<Eigen::VectorXf> feature_vector;
+  LayerMerges given_merges = {};
+  // TODO(nathan) flip to const when we have mutable state
+  kimera_pgmo::DeformationGraph* deformation_graph = nullptr;
+  const std::unordered_map<NodeId, size_t>* node_to_robot_id = nullptr;
+  //! Number of vertices currently archived in the mesh
+  size_t num_archived_vertices = 0;
+  //! Number of vertices previously archived in the mesh
+  size_t num_previous_archived_vertices = 0;
+  //! Global feature vector for this update
+  std::optional<FeatureVector> feature = std::nullopt;
+  //! Input image for this update
+  cv::Mat input_image;
 };
 
-using LayerUpdateFunc = std::function<MergeList(
-    const DynamicSceneGraph&, SharedDsgInfo&, const UpdateInfo::ConstPtr&)>;
 using LayerCleanupFunc =
     std::function<void(const UpdateInfo::ConstPtr&, SharedDsgInfo*)>;
+using FindMergeFunc =
+    std::function<MergeList(const DynamicSceneGraph&, const UpdateInfo::ConstPtr&)>;
 using MergeFunc = std::function<NodeAttributes::Ptr(const DynamicSceneGraph&,
                                                     const std::vector<NodeId>&)>;
 
@@ -88,16 +83,16 @@ struct UpdateFunctor {
   using Ptr = std::shared_ptr<UpdateFunctor>;
 
   struct Hooks {
-    LayerUpdateFunc update;
     LayerCleanupFunc cleanup;
+    FindMergeFunc find_merges;
     MergeFunc merge;
   };
 
   virtual ~UpdateFunctor() = default;
   virtual Hooks hooks() const;
-  virtual MergeList call(const DynamicSceneGraph& unmerged,
-                         SharedDsgInfo& dsg,
-                         const UpdateInfo::ConstPtr& info) const = 0;
+  virtual void call(const DynamicSceneGraph& unmerged,
+                    SharedDsgInfo& dsg,
+                    const UpdateInfo::ConstPtr& info) = 0;
 };
 
 }  // namespace hydra

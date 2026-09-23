@@ -34,8 +34,6 @@
  * -------------------------------------------------------------------------- */
 #pragma once
 #include <optional>
-#include <set>
-#include <unordered_map>
 #include <vector>
 
 #include "hydra/common/dsg_types.h"
@@ -61,9 +59,9 @@ void updateObjectSemanticFeature(const Eigen::VectorXf& semantic_feature,
 MeshLayer::Ptr getActiveMesh(const MeshLayer& mesh_layer,
                              const BlockIndices& archived_blocks);
 
-void mergeEdges(DynamicSceneGraph& graph,
-                const NodeId& old_node_id,
-                const NodeId& new_node_id,
-                std::unordered_map<NodeId, std::set<NodeId>>& active_edges);
+BoundingBox fitBoxToFilteredMesh(const Mesh& mesh,
+                                 BoundingBox::Type type = BoundingBox::Type::AABB,
+                                 int inlier_min_neighbors = 5,
+                                 double inlier_search_radius = 0.1);
 
 }  // namespace hydra

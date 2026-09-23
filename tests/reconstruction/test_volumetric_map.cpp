@@ -99,8 +99,9 @@ TEST_F(VolumetricMapFixture, SaveLoadEmptyCorrect) {
   config.voxel_size = 0.2;
   config.voxels_per_side = 32;
   config.truncation_distance = 0.5;
+  config.with_semantics = true;
 
-  VolumetricMap original(config, true);
+  VolumetricMap original(config);
   original.save(map_path.string());
 
   auto result = VolumetricMap::load(map_path.string());
@@ -118,8 +119,9 @@ TEST_F(VolumetricMapFixture, SaveLoadSemanticsCorrect) {
   config.voxel_size = 0.2;
   config.voxels_per_side = 32;
   config.truncation_distance = 0.5;
+  config.with_semantics = true;
 
-  VolumetricMap original(config, true);
+  VolumetricMap original(config);
   auto semantics = original.getSemanticLayer();
   ASSERT_TRUE(semantics != nullptr);
 
@@ -150,6 +152,13 @@ TEST_F(VolumetricMapFixture, SaveLoadSemanticsCorrect) {
   const auto& result_block2 = result_semantics->getBlock(idx2);
   SCOPED_TRACE("block 2");
   compareVoxels(*block2, result_block2);
+}
+
+TEST(VolumetricMap, BlockSizeCorrect) {
+  VolumetricMap::Config config{0.2f, 32, 0.5f};
+  VolumetricMap map(config);
+  EXPECT_NEAR(map.blockSize(), 6.4f, 1.0e-6f);
+  EXPECT_NEAR(map.blockSize(), map.getTsdfLayer().blockSize(), 1.0e-6f);
 }
 
 }  // namespace hydra

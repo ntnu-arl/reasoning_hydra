@@ -36,8 +36,8 @@
 #include <glog/logging.h>
 
 #include <filesystem>
+#include <iostream>
 
-#include "hydra/common/common.h"
 #include "hydra/eval/room_evaluator.h"
 
 DEFINE_string(tsdf_file, "", "tsdf file to read");

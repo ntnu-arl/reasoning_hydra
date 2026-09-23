@@ -38,7 +38,6 @@
 #include <list>
 #include <memory>
 #include <string>
-#include <vector>
 
 namespace hydra {
 
@@ -46,12 +45,12 @@ template <typename... Args>
 struct OutputSink {
   using Sink = OutputSink<Args...>;
   using Ptr = std::shared_ptr<Sink>;
-  using Factory = config::VirtualConfig<Sink>;
+  using Factory = config::VirtualConfig<Sink, true>;
   using List = std::list<Ptr>;
 
   virtual ~OutputSink() = default;
-  virtual void call(Args... args) = 0;
-  virtual std::string printInfo() const { return ""; }
+  virtual void call(Args... args) const = 0;
+  virtual std::string printInfo() const { return "n/a"; }
 
   static Ptr fromCallback(const std::function<void(Args...)>& callback);
 
@@ -78,14 +77,32 @@ struct OutputSink {
       }
     }
   }
+
+  static std::string printSinks(const List& sinks) {
+    std::stringstream ss;
+
+    size_t sink_idx = 0;
+    auto iter = sinks.begin();
+    while (iter != sinks.end()) {
+      const auto& sink = *iter;
+      ss << "Sink " << sink_idx << ": " << (sink ? "\n" + sink->printInfo() : "n/a");
+      ++iter;
+      ++sink_idx;
+      if (iter != sinks.end()) {
+        ss << "\n";
+      }
+    }
+
+    return ss.str();
+  }
 };
 
 template <typename... Args>
 struct FunctionSink : OutputSink<Args...> {
-  explicit FunctionSink(const std::function<void(Args...)>& f) : func(f) {}
+  FunctionSink(const std::function<void(Args...)>& f) : func(f) {}
   virtual ~FunctionSink() = default;
 
-  void call(Args... args) override { func(args...); }
+  void call(Args... args) const override { func(args...); }
 
   std::function<void(Args...)> func;
 };
@@ -101,9 +118,9 @@ struct MethodSink : OutputSink<Args...> {
   MethodSink(void (T::*callback)(Args...) const, const T* instance)
       : callback(callback), instance(instance) {}
 
-  void call(Args... args) override { (instance->*callback)(args...); }
+  void call(Args... args) const override { (instance->*callback)(args...); }
 
-  void (T::*callback)(Args...);
+  void (T::*callback)(Args...) const;
   const T* instance;
 };
 
@@ -119,7 +136,7 @@ struct NonConstMethodSink : OutputSink<Args...> {
   NonConstMethodSink(void (T::*callback)(Args...), T* instance)
       : callback(callback), instance(instance) {}
 
-  void call(Args... args) override { (instance->*callback)(args...); }
+  void call(Args... args) const override { (instance->*callback)(args...); }
 
   void (T::*callback)(Args...);
   T* instance;

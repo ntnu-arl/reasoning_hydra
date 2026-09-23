@@ -33,26 +33,22 @@
  * purposes notwithstanding any copyright notation herein.
  * -------------------------------------------------------------------------- */
 #pragma once
-#include <config_utilities/virtual_config.h>
-
 #include <optional>
 
-#include "hydra/common/input_queue.h"
-#include "hydra/input/sensor.h"
+#include "hydra/common/message_queue.h"
 #include "hydra/input/sensor_input_packet.h"
 
 namespace hydra {
 
 class DataReceiver {
  public:
-  using DataQueue = InputQueue<SensorInputPacket::Ptr>;
+  using DataQueue = MessageQueue<SensorInputPacket::Ptr>;
 
   struct Config {
-    config::VirtualConfig<Sensor> sensor;
     double input_separation_s = 0.0;
   };
 
-  DataReceiver(const Config& config, size_t sensor_id);
+  DataReceiver(const Config& config, const std::string& sensor_name);
   virtual ~DataReceiver() = default;
 
   bool init();
@@ -68,7 +64,7 @@ class DataReceiver {
 
   std::optional<uint64_t> last_time_received_;
 
-  const size_t sensor_id_;
+  const std::string sensor_name_;
 };
 
 void declare_config(DataReceiver::Config& config);

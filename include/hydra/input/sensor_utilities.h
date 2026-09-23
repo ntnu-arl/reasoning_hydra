@@ -47,10 +47,6 @@
 // purposes notwithstanding any copyright notation herein.
 #pragma once
 
-#include <pcl/point_cloud.h>
-#include <pcl/point_types.h>
-
-#include <limits>
 #include <opencv2/core/mat.hpp>
 
 #include "hydra/input/sensor.h"
@@ -101,15 +97,6 @@ BlockIndices findBlocksInViewFrustum(
     float min_range = 0.f,
     float max_range = std::numeric_limits<float>::max(),
     bool use_sensor_range = true);
-
-/**
- * @brief Finds the indices of all blocks corresponding to a point in the pointcloud.
- * @param point Point in the pointcloud.
- * @param block_size Size of the block in meters.
- * @return List of block indices that correspond to the point in the pointcloud.
- */
-BlockIndices findBlocksInPointcloud(pcl::PointCloud<pcl::PointXYZRGBL>::Ptr point,
-                                    const float block_size);
 
 /**
  * @brief Compute range image from pointcloud

@@ -1,6 +1,3 @@
-// Portions of the following code and their modifications are originally from
-// https://github.com/MIT-SPARK/Hydra/tree/main and are licensed under the following
-// license:
 /* -----------------------------------------------------------------------------
  * Copyright 2022 Massachusetts Institute of Technology.
  * All Rights Reserved
@@ -35,46 +32,28 @@
  * Government is authorized to reproduce and distribute reprints for Government
  * purposes notwithstanding any copyright notation herein.
  * -------------------------------------------------------------------------- */
-
-// Copyright (c) 2025, Autonomous Robots Lab, Norwegian University of Science and
-// Technology All rights reserved.
-
-// This source code is licensed under the BSD-style license found in the
-// LICENSE file in the root directory of this source tree.
-
 #pragma once
-#include <config_utilities/factory.h>
+#include <config_utilities/virtual_config.h>
 #include <kimera_pgmo/kimera_pgmo_interface.h>
-#include <pcl/PolygonMesh.h>
+#include <spark_dsg/labelspace.h>
 #include <spark_dsg/scene_graph_logger.h>
 
-#include <list>
+#include <filesystem>
 #include <map>
 #include <memory>
 #include <mutex>
-#include <queue>
-#include <string>
+#include <opencv2/core/mat.hpp>
 #include <thread>
-#include <unordered_map>
-#include <vector>
 
+#include "hydra/backend/backend_input.h"
+#include "hydra/backend/dsg_updater.h"
+#include "hydra/backend/external_loop_closure_receiver.h"
 #include "hydra/backend/merge_tracker.h"
 #include "hydra/backend/pgmo_configs.h"
-#include "hydra/backend/update_frontiers_functor.h"
-#include "hydra/backend/update_rooms_buildings_functor.h"
-#include "hydra/backend/update_surface_places_functor.h"
-#include "hydra/common/common.h"
 #include "hydra/common/module.h"
 #include "hydra/common/output_sink.h"
 #include "hydra/common/shared_dsg_info.h"
 #include "hydra/common/shared_module_state.h"
-#include "hydra/utils/log_utilities.h"
-#include "hydra/utils/nearest_neighbor_utilities.h"
-
-namespace spark_dsg {
-class ZmqReceiver;
-class ZmqSender;
-}  // namespace spark_dsg
 
 namespace hydra {
 
@@ -86,54 +65,50 @@ struct LoopClosureLog {
   int64_t level;
 };
 
+struct BackendModuleStatus {
+  size_t total_loop_closures = 0;
+  size_t new_loop_closures = 0;
+  size_t total_factors = 0;
+  size_t total_values = 0;
+  size_t new_factors = 0;
+  size_t new_graph_factors = 0;
+  size_t trajectory_len = 0;
+  size_t num_merges_undone = 0;
+  std::optional<double> last_spin_s = 0.0;
+  std::optional<double> last_opt_s = 0.0;
+  std::optional<double> last_mesh_update_s = 0.0;
+};
+
 class BackendModule : public kimera_pgmo::KimeraPgmoInterface, public Module {
  public:
   using Ptr = std::shared_ptr<BackendModule>;
   using Sink = OutputSink<uint64_t,
                           const DynamicSceneGraph&,
-                          const kimera_pgmo::DeformationGraph&>;
+                          const kimera_pgmo::DeformationGraph&,
+                          const cv::Mat&,
+                          const bool>;
 
-  struct Config {
-    bool visualize_place_factors = true;
-    bool enable_rooms = true;
-    RoomsFunctorConfig room_functor;
-    bool use_vlm = false;
-    bool enable_buildings = true;
-    Color building_color = Color(169, 8, 194);  // purple
-    SemanticNodeAttributes::Label building_semantic_label = 22u;
+  enum class RoomClassificationType { NONE, NEXT_ROOM, TIME, POSITION };
+
+  struct Config : DsgUpdater::Config {
+    //! Specialized PGMO configuration that includes scene graph factor covariances
     HydraPgmoConfig pgmo;
-    bool always_update_labels = false;
-    // dsg
+    //! Add places layer to factor graph via MST approach
     bool add_places_to_deformation_graph = true;
+    //! Optimize
     bool optimize_on_lc = true;
-    bool enable_node_merging = true;
-    bool use_mesh_subscribers = false;
-    mutable std::map<LayerId, bool> merge_update_map{{DsgLayers::OBJECTS, false},
-                                                     {DsgLayers::PLACES, true},
-                                                     {DsgLayers::ROOMS, false},
-                                                     {DsgLayers::BUILDINGS, false}};
-    bool merge_update_dynamic = true;
-    double places_merge_pos_threshold_m = 0.4;
-    double places_merge_distance_tolerance_m = 0.3;
-    bool enable_merge_undos = false;
-    bool use_active_flag_for_updates = true;
-    size_t num_neighbors_to_find_for_merge = 1;
-    std::string zmq_send_url = "tcp://127.0.0.1:8001";
-    std::string zmq_recv_url = "tcp://127.0.0.1:8002";
-    bool use_zmq_interface = false;
-    size_t zmq_num_threads = 2;
-    size_t zmq_poll_time_ms = 10;
-    bool zmq_send_mesh = true;
-    bool use_2d_places = false;
-    Update2dPlacesFunctor::Config places2d_config;
-    UpdateFrontiersFunctor::Config frontier_config;
+    ExternalLoopClosureReceiver::Config external_loop_closures;
+    //! Classify rooms
+    RoomClassificationType classify_rooms = RoomClassificationType::NONE;
+    float room_class_period_s = 30.0;
+    double room_class_position_threshold_m = 1.0;
+    //! Output sinks that process that latest backed scene graph and state
     std::vector<Sink::Factory> sinks;
   } const config;
 
   BackendModule(const Config& config,
                 const SharedDsgInfo::Ptr& dsg,
-                const SharedModuleState::Ptr& state,
-                const LogSetup::Ptr& logs = nullptr);
+                const SharedModuleState::Ptr& state);
 
   virtual ~BackendModule();
 
@@ -145,130 +120,94 @@ class BackendModule : public kimera_pgmo::KimeraPgmoInterface, public Module {
 
   void stop() override;
 
-  void save(const LogSetup& log_setup) override;
+  void save(const DataDirectory& output) override;
 
   std::string printInfo() const override;
 
   void spin();
 
-  bool spinOnce(bool force_update = true);
+  bool step(bool force_optimize = false);
 
-  inline void triggerBackendDsgReset() { reset_backend_dsg_ = true; }
-
-  // used by dsg_optimizer
-  virtual void spinOnce(const BackendInput& input,
-                        const BackendVLMLabelsInput::Ptr& vlm_labels = nullptr,
-                        bool force_update = true);
-
-  void loadState(const std::string& state_path, const std::string& dgrf_path);
+  void loadState(const std::filesystem::path& mesh_path,
+                 const std::filesystem::path& dgrf_path,
+                 bool force_loopclosures = true);
 
   void addSink(const Sink::Ptr& sink);
 
-  void setUpdateFunctor(LayerId layer, const UpdateFunctor::Ptr& functor);
-
-  void setGraph(const DynamicSceneGraph::Ptr& graph);
-
-  void callSinks();
+  bool addNewLabels();
 
  protected:
-  void setSolverParams();
+  virtual bool spinOnce(bool force_update = true);
+
+  void updateRoomClassifications(const RoomClassification::Ptr& classification);
 
   void addLoopClosure(const gtsam::Key& src,
                       const gtsam::Key& dest,
                       const gtsam::Pose3& src_T_dest,
                       double variance);
 
-  virtual void setupDefaultFunctors();
+  void updateFactorGraph(const BackendInput& input);
 
-  virtual void updateFactorGraph(const BackendInput& input);
+  bool updateFromLcdQueue();
 
-  virtual bool updateFromLcdQueue();
+  void copyMeshDelta(const BackendInput& input);
 
-  virtual void copyMeshDelta(const BackendInput& input);
+  bool updatePrivateDsg(size_t timestamp_ns, bool force_update = true);
 
-  virtual bool updatePrivateDsg(size_t timestamp_ns, bool force_update = true);
+  void updateAgentNodeMeasurements(const pose_graph_tools::PoseGraph& meas);
 
-  virtual void addPlacesToDeformationGraph(size_t timestamp_ns);
+  void optimize(size_t timestamp_ns,
+                const cv::Mat& input_image,
+                bool force_find_merge = false,
+                const std::optional<FeatureVector>& feature = std::nullopt);
 
-  virtual void updateAgentNodeMeasurements(const pose_graph_tools::PoseGraph& meas);
-
-  virtual void optimize(size_t timestamp_ns,
-                        const std::optional<Eigen::VectorXf>& feature_vector);
-
-  virtual void updateDsgMesh(size_t timestamp_ns, bool force_mesh_update = false);
-
-  virtual void resetBackendDsg(size_t timestamp_ns);
-
-  virtual void callUpdateFunctions(
-      size_t timestamp_ns,
-      const std::optional<Eigen::VectorXf>& feature_vector = std::nullopt,
-      const gtsam::Values& places_values = gtsam::Values(),
-      const gtsam::Values& pgmo_values = gtsam::Values(),
-      bool new_loop_closure = false,
-      const UpdateInfo::LayerMerges& given_merges = {});
-
-  void runZmqUpdates();
-
-  void updateMergedNodes(const std::map<NodeId, NodeId>& new_merges);
-
-  void logStatus(bool init = false) const;
+  void updateDsgMesh(size_t timestamp_ns, bool force_mesh_update = false);
 
   void logIncrementalLoopClosures(const pose_graph_tools::PoseGraph& graph);
 
-  void labelRooms(const UpdateInfo& info, SharedDsgInfo* dsg);
+  void logStatus();
 
-  void labelEdges(const BackendVLMLabelsInput& vlm_labels);
+  bool classifyRooms(const uint64_t timestamp_ns);
 
  protected:
   void stopImpl();
 
   std::unique_ptr<std::thread> spin_thread_;
   std::atomic<bool> should_shutdown_{false};
-  bool have_loopclosures_{false};
-  bool have_new_loopclosures_{false};
-  bool have_new_mesh_{false};
-  size_t prev_num_archived_vertices_{0};
-  size_t num_archived_vertices_{0};
-  bool reset_backend_dsg_{false};
+  bool force_optimize_ = false;
+  bool have_loopclosures_ = false;
+  bool have_new_loopclosures_ = false;
+  bool have_new_mesh_ = false;
+  uint64_t last_sequence_number_ = 0;
 
-  std::unordered_map<NodeId, Eigen::Vector3d> place_pos_cache_;
+  struct RoomClassificationDetection {
+    NodeId last_room_id_ = 0;
+    uint64_t last_room_timestamp_ns_ = 0;
+    Eigen::Vector3d last_agent_position_ = Eigen::Vector3d::Zero();
+  } last_room_classification_;
 
   SharedDsgInfo::Ptr private_dsg_;
   DynamicSceneGraph::Ptr unmerged_graph_;
   SharedModuleState::Ptr state_;
-  pcl::PointCloud<pcl::PointXYZ>::Ptr original_vertices_;
-  std::vector<uint64_t> vertex_stamps_;
 
-  MergeTracker merge_tracker;
-  std::map<LayerId, UpdateFunctor::Ptr> layer_functors_;
-  UpdateFunctor::Ptr agent_functor_;
-
-  BackendModuleStatus status_;
-  SceneGraphLogger backend_graph_logger_;
-  LogSetup::Ptr logs_;
-  std::list<LoopClosureLog> loop_closures_;
+  DsgUpdater::Ptr dsg_updater_;
 
   kimera_pgmo::Path trajectory_;
   std::vector<size_t> timestamps_;
-  std::queue<size_t> unconnected_nodes_;
+  pcl::PointCloud<pcl::PointXYZ>::Ptr original_vertices_;
+  std::shared_ptr<std::vector<uint64_t>> vertex_stamps_;
+  size_t prev_num_archived_vertices_ = 0;
+  size_t num_archived_vertices_ = 0;
+
+  std::vector<BackendModuleStatus> status_log_;
+  SceneGraphLogger backend_graph_logger_;
+  std::list<LoopClosureLog> loop_closures_;
+  ExternalLoopClosureReceiver external_lc_receiver_;
 
   Sink::List sinks_;
 
-  std::map<NodeId, std::string> room_name_map_;
-  std::unique_ptr<std::thread> zmq_thread_;
-  std::unique_ptr<spark_dsg::ZmqReceiver> zmq_receiver_;
-  std::unique_ptr<spark_dsg::ZmqSender> zmq_sender_;
-  std::unique_ptr<NearestNodeFinder> places_with_parent_nn_finder_;
-
+  // TODO(lschmid): This mutex currently simply locks all data for manipulation.
   std::mutex mutex_;
-
-  inline static const auto registration_ =
-      config::RegistrationWithConfig<BackendModule,
-                                     BackendModule,
-                                     Config,
-                                     SharedDsgInfo::Ptr,
-                                     SharedModuleState::Ptr,
-                                     LogSetup::Ptr>("BackendModule");
 };
 
 void declare_config(BackendModule::Config& conf);

@@ -48,6 +48,8 @@
 #include "hydra/input/camera.h"
 
 #include <config_utilities/config_utilities.h>
+#include <config_utilities/factory.h>
+#include <config_utilities/parsing/yaml.h>
 
 #include <unordered_map>
 #include <vector>
@@ -55,6 +57,13 @@
 #include "hydra/input/sensor_utilities.h"
 
 namespace hydra {
+namespace {
+
+static const auto registration =
+    config::RegistrationWithConfig<Sensor, Camera, Camera::Config, std::string>(
+        "camera");
+
+}
 
 void declare_config(Camera::Config& config) {
   using namespace config;
@@ -77,8 +86,8 @@ void declare_config(Camera::Config& config) {
   checkCondition(config.cy <= config.height, "param 'cy' is expected <= 'height'");
 }
 
-Camera::Camera(const Config& config)
-    : Sensor(config), config_(config::checkValid(config)) {
+Camera::Camera(const Config& config, const std::string& name)
+    : Sensor(config, name), config_(config::checkValid(config)) {
   // Pre-compute the view frustum (top, right, bottom, left, plane normals).
   const auto scale_factor = config_.fx / config_.fy;
   Eigen::Vector3f p1(-config_.cx, -config_.cy * scale_factor, config_.fx);
@@ -98,6 +107,8 @@ Camera::Camera(const Config& config)
   p1 = Eigen::Vector3f(-config_.cx, -config_.cy * scale_factor, config_.fx);
   view_frustum_.row(3) = p2.cross(p1).normalized();
 }
+
+float Camera::getPointDepth(const Eigen::Vector3f& p) const { return p.z(); }
 
 float Camera::computeRayDensity(float voxel_size, float depth) const {
   return config_.fx * config_.fy * std::pow(voxel_size / depth, 2.f);
@@ -217,8 +228,8 @@ cv::Mat Camera::computeRangeImage(const cv::Mat& depth_image,
                                   float* max_range) const {
   // Compute the range (=radial distance) from the pointcloud.
   cv::Mat range_image(depth_image.size(), CV_32FC1);
-  const float fx_inv = 1.f / config_.fx;
-  const float fy_inv = 1.f / config_.fy;
+  const float fx_inv = 1.0f / config_.fx;
+  const float fy_inv = 1.0f / config_.fy;
   if (min_range) {
     *min_range = std::numeric_limits<float>::max();
   }
@@ -247,5 +258,7 @@ cv::Mat Camera::computeRangeImage(const cv::Mat& depth_image,
 
   return range_image;
 }
+
+YAML::Node Camera::dump() const { return config::toYaml(config_); }
 
 }  // namespace hydra

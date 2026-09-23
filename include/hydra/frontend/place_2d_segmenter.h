@@ -54,6 +54,7 @@ class Place2dSegmenter : public SurfacePlacesInterface {
   using LabelPlaces = std::map<uint32_t, Places>;
 
   struct Config {
+    std::string layer = DsgLayers::MESH_PLACES;
     char prefix = 'Q';
     double cluster_tolerance = 1;
     size_t min_cluster_size = 600;
@@ -68,14 +69,14 @@ class Place2dSegmenter : public SurfacePlacesInterface {
 
   explicit Place2dSegmenter(const Config& config);
 
-  void detect(const ReconstructionOutput& msg,
+  void detect(const ActiveWindowOutput& msg,
               const kimera_pgmo::MeshDelta& mesh_delta,
               const DynamicSceneGraph& graph) override;
 
   NodeIdSet getActiveNodes() const override;
 
   void updateGraph(uint64_t timestamp_ns,
-                   const ReconstructionOutput&,
+                   const ActiveWindowOutput&,
                    DynamicSceneGraph& graph) override;
 
  private:

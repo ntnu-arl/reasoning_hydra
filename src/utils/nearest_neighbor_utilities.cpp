@@ -51,7 +51,7 @@ struct GraphKdTreeAdaptor {
   inline size_t kdtree_get_point_count() const { return nodes.size(); }
 
   inline double kdtree_get_pt(const size_t idx, const size_t dim) const {
-    return layer.getPosition(nodes[idx])(dim);
+    return getNodePosition(layer, nodes[idx])(dim);
   }
 
   template <class T>
@@ -126,10 +126,11 @@ void NearestNodeFinder::find(const Eigen::Vector3d& position,
   }
 }
 
-size_t NearestNodeFinder::findRadius(const Eigen::Vector3d& position,
-                                     double radius,
-                                     bool skip_first,
-                                     const NearestNodeFinder::Callback& callback) {
+size_t NearestNodeFinder::findRadius(
+    const Eigen::Vector3d& position,
+    double radius,
+    bool skip_first,
+    const NearestNodeFinder::Callback& callback) const {
   std::vector<nanoflann::ResultItem<size_t, double>> neighbors;
   size_t num_found = internals_->kdtree->radiusSearch(
       position.data(), radius, neighbors, nanoflann::SearchParameters());
@@ -145,6 +146,16 @@ size_t NearestNodeFinder::findRadius(const Eigen::Vector3d& position,
   } else {
     return num_found - (skip_first ? 1 : 0);
   }
+}
+
+std::vector<NodeId> NearestNodeFinder::findRadius(const Eigen::Vector3d& position,
+                                                  double radius_m,
+                                                  bool skip_first) const {
+  std::vector<NodeId> result;
+  findRadius(position, radius_m, skip_first, [&result](NodeId id, size_t, double) {
+    result.push_back(id);
+  });
+  return result;
 }
 
 size_t makeSemanticNodeFinders(const SceneGraphLayer& layer,

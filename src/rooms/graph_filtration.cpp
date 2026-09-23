@@ -416,7 +416,9 @@ size_t getMedianComponents(const Filtration& values,
   }
 
   std::sort(components.begin(), components.end());
-  CHECK(!components.empty());
+  if (components.empty()) {
+    return 0;
+  }
   const size_t median_idx = std::ceil(static_cast<double>(components.size() - 1) / 2.0);
   return components[median_idx];
 }

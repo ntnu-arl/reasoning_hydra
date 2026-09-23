@@ -31,50 +31,25 @@
 //
 // See https://github.com/ethz-asl/panoptic_mapping for original code and paper
 //
-// Portions of the following code and their modifications are originally from
-// https://github.com/MIT-SPARK/Hydra/tree/main and are licensed under the following
-// license:
-/* -----------------------------------------------------------------------------
- * Copyright 2022 Massachusetts Institute of Technology.
- * All Rights Reserved
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *
- *  1. Redistributions of source code must retain the above copyright notice,
- *     this list of conditions and the following disclaimer.
- *
- *  2. Redistributions in binary form must reproduce the above copyright notice,
- *     this list of conditions and the following disclaimer in the documentation
- *     and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
- * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
- * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
- * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Research was sponsored by the United States Air Force Research Laboratory and
- * the United States Air Force Artificial Intelligence Accelerator and was
- * accomplished under Cooperative Agreement Number FA8750-19-2-1000. The views
- * and conclusions contained in this document are those of the authors and should
- * not be interpreted as representing the official policies, either expressed or
- * implied, of the United States Air Force or the U.S. Government. The U.S.
- * Government is authorized to reproduce and distribute reprints for Government
- * purposes notwithstanding any copyright notation herein.
- * -------------------------------------------------------------------------- */
-
-// Copyright (c) 2025, Autonomous Robots Lab, Norwegian University of Science and
-// Technology All rights reserved.
-
-// This source code is licensed under the BSD-style license found in the
-// LICENSE file in the root directory of this source tree.
+// Modifications (including work done by Lukas Schmid for Khronos) fall under the same
+// license as Hydra and are subject to the following copyright and disclaimer:
+//
+// Copyright 2022 Massachusetts Institute of Technology.
+// All Rights Reserved
+//
+// Research was sponsored by the United States Air Force Research Laboratory and
+// the United States Air Force Artificial Intelligence Accelerator and was
+// accomplished under Cooperative Agreement Number FA8750-19-2-1000. The views
+// and conclusions contained in this document are those of the authors and should
+// not be interpreted as representing the official policies, either expressed or
+// implied, of the United States Air Force or the U.S. Government. The U.S.
+// Government is authorized to reproduce and distribute reprints for Government
+// purposes notwithstanding any copyright notation herein.
 #include "hydra/reconstruction/projection_interpolators.h"
+
+#include <config_utilities/config.h>
+#include <config_utilities/factory.h>
+#include <config_utilities/validation.h>
 
 #include <Eigen/Core>
 #include <cmath>
@@ -82,78 +57,130 @@
 #include <unordered_map>
 
 namespace hydra {
+namespace {
 
-InterpolationWeights InterpolatorNearest::computeWeights(float u,
-                                                         float v,
-                                                         const cv::Mat& img) const {
-  InterpolationWeights weights(std::round(u), std::round(v));
+static const auto nearest_registration =
+    config::RegistrationWithConfig<ProjectionInterpolator,
+                                   InterpolatorNearest,
+                                   InterpolatorNearest::Config>("nearest");
+
+static const auto bilinear_registration =
+    config::RegistrationWithConfig<ProjectionInterpolator,
+                                   InterpolatorBilinear,
+                                   InterpolatorBilinear::Config>("bilinear");
+
+static const auto adaptive_registration =
+    config::RegistrationWithConfig<ProjectionInterpolator,
+                                   InterpolatorAdaptive,
+                                   InterpolatorAdaptive::Config>("adaptive");
+
+}  // namespace
+
+using spark_dsg::Color;
+using Weights = InterpolationWeights;
+
+void declare_config(InterpolatorNearest::Config&) {
+  config::name("InterpolatorNearest::Config");
+}
+
+Weights InterpolatorNearest::computeWeights(float u,
+                                            float v,
+                                            const cv::Mat& img) const {
+  Weights weights(std::round(u), std::round(v));
   if (weights.u < 0 || weights.u >= img.cols || weights.v < 0 ||
       weights.v >= img.rows) {
     return weights;
   }
-  if (img.at<float>(weights.v, weights.u) <= 0.f) {
-    weights.valid = false;
-  } else {
-    weights.valid = true;
-  }
+
+  weights.valid = true;
   return weights;
 }
 
-bool InterpolatorNearest::InterpolateRange(const cv::Mat& range_image,
-                                           const InterpolationWeights& weights,
-                                           float& d_to_surface,
-                                           const float min_range) const {
-  d_to_surface = range_image.at<float>(weights.v, weights.u);
-  return d_to_surface > min_range;
+float InterpolatorNearest::interpolateRange(const cv::Mat& range_image,
+                                            const Weights& weights) const {
+  return range_image.at<float>(weights.v, weights.u);
 }
 
 Color InterpolatorNearest::interpolateColor(const cv::Mat& color_image,
-                                            const InterpolationWeights& weights) const {
+                                            const Weights& weights) const {
   const cv::Vec3b color = color_image.at<cv::Vec3b>(weights.v, weights.u);
   return Color(color[0], color[1], color[2]);
 }
 
 int InterpolatorNearest::interpolateID(const cv::Mat& id_image,
-                                       const InterpolationWeights& weights) const {
+                                       const Weights& weights) const {
   return id_image.at<int32_t>(weights.v, weights.u);
 }
 
+std::optional<FeatureVector> InterpolatorNearest::interpolateFeatures(
+    const std::optional<cv::Mat>& panoptic_image,
+    FeatureMap<int> semantic_features,
+    const Weights& weights) const {
+  if (!panoptic_image || semantic_features.empty()) {
+    return std::nullopt;
+  }
+
+  const auto pan_id = panoptic_image.value().at<uint16_t>(weights.v, weights.u);
+
+  if (pan_id == 0) {
+    return std::nullopt;
+  }
+  return semantic_features.at(pan_id);
+}
+
 std::optional<uint16_t> InterpolatorNearest::interpolatePanoptic(
-    const std::optional<cv::Mat>& features_mask,
-    const InterpolationWeights& weights) const {
-  if (!features_mask) {
+    const std::optional<cv::Mat>& panoptic_image, const Weights& weights) const {
+  if (!panoptic_image) {
     return std::nullopt;
   }
-
-  const auto feature_index = features_mask.value().at<uint16_t>(weights.v, weights.u);
-  if (feature_index == 0) {
+  const auto pan_id = panoptic_image.value().at<uint16_t>(weights.v, weights.u);
+  if (pan_id == 0) {
     return std::nullopt;
   }
-
-  return features_mask.value().at<uint16_t>(weights.v, weights.u);
+  return pan_id;
 }
 
-std::optional<Eigen::VectorXf> InterpolatorNearest::interpolateFeatures(
-    const std::optional<cv::Mat>& features_mask,
-    std::optional<std::unordered_map<uint16_t, Eigen::VectorXf>> semantic_features,
-    const InterpolationWeights& weights) const {
-  if (!features_mask || !semantic_features) {
+std::optional<FeatureVector> InterpolatorNearest::interpolatePixelwiseFeature(
+    const std::optional<cv::Mat>& pixelwise_feature_image,
+    const Weights& weights,
+    const int orig_height,
+    const int orig_width) const {
+  if (!pixelwise_feature_image) {
     return std::nullopt;
   }
-  if (semantic_features.value().size() == 0) {
-    return std::nullopt;
+
+  const cv::Mat& feature_image = pixelwise_feature_image.value();
+  CV_Assert(feature_image.depth() == CV_32F);
+
+  const int feat_h = feature_image.rows;
+  const int feat_w = feature_image.cols;
+  const int channels = feature_image.channels();
+
+  // Map original coords -> feature map coords
+  float scale_x = static_cast<float>(feat_w) / orig_width;
+  float scale_y = static_cast<float>(feat_h) / orig_height;
+
+  int u_feat = std::min(feat_w - 1, std::max(0, static_cast<int>(weights.u * scale_x)));
+  int v_feat = std::min(feat_h - 1, std::max(0, static_cast<int>(weights.v * scale_y)));
+
+  FeatureVector feature(channels);
+  const float* pixel = feature_image.ptr<float>(v_feat, u_feat);
+
+  for (int i = 0; i < channels; ++i) {
+    feature[i] = pixel[i];
   }
-  const auto feature_index = features_mask.value().at<uint16_t>(weights.v, weights.u);
-  if (feature_index == 0) {
-    return std::nullopt;
-  }
-  return semantic_features.value().at(feature_index);
+
+  return feature;
 }
 
-InterpolationWeights InterpolatorBilinear::computeWeights(float u,
-                                                          float v,
-                                                          const cv::Mat& img) const {
-  InterpolationWeights weights(std::floor(u), std::floor(v));
+void declare_config(InterpolatorBilinear::Config&) {
+  config::name("InterpolatorBilinear::Config");
+}
+
+Weights InterpolatorBilinear::computeWeights(float u,
+                                             float v,
+                                             const cv::Mat& img) const {
+  Weights weights(std::floor(u), std::floor(v));
   if (weights.u < 0 || weights.v < 0 || weights.u >= img.cols - 1 ||
       weights.v >= img.rows - 1) {
     return weights;
@@ -170,32 +197,16 @@ InterpolationWeights InterpolatorBilinear::computeWeights(float u,
   return weights;
 }
 
-bool InterpolatorBilinear::InterpolateRange(const cv::Mat& range_image,
-                                            const InterpolationWeights& weights,
-                                            float& d_to_surface,
-                                            const float min_range) const {
-  const float r0 = range_image.at<float>(weights.v, weights.u);
-  const float r1 = range_image.at<float>(weights.v + 1, weights.u);
-  const float r2 = range_image.at<float>(weights.v, weights.u + 1);
-  const float r3 = range_image.at<float>(weights.v + 1, weights.u + 1);
-  d_to_surface = 0.f;
-  if (r0 > min_range) {
-    d_to_surface += r0 * weights.w0;
-  }
-  if (r1 > min_range) {
-    d_to_surface += r1 * weights.w1;
-  }
-  if (r2 > min_range) {
-    d_to_surface += r2 * weights.w2;
-  }
-  if (r3 > min_range) {
-    d_to_surface += r3 * weights.w3;
-  }
-  return d_to_surface > min_range;
+float InterpolatorBilinear::interpolateRange(const cv::Mat& range_image,
+                                             const Weights& weights) const {
+  return range_image.at<float>(weights.v, weights.u) * weights.w0 +
+         range_image.at<float>(weights.v + 1, weights.u) * weights.w1 +
+         range_image.at<float>(weights.v, weights.u + 1) * weights.w2 +
+         range_image.at<float>(weights.v + 1, weights.u + 1) * weights.w3;
 }
 
-Color InterpolatorBilinear::interpolateColor(
-    const cv::Mat& color_image, const InterpolationWeights& weights) const {
+Color InterpolatorBilinear::interpolateColor(const cv::Mat& color_image,
+                                             const Weights& weights) const {
   Eigen::Vector3f color(0, 0, 0);
   auto c1 = color_image.at<cv::Vec3b>(weights.v, weights.u);
   auto c2 = color_image.at<cv::Vec3b>(weights.v + 1, weights.u);
@@ -205,13 +216,18 @@ Color InterpolatorBilinear::interpolateColor(
     color[i] = c1[i] * weights.w0 + c2[i] * weights.w1 + c3[i] * weights.w2 +
                c4[i] * weights.w3;
   }
+
   return Color(color[0], color[1], color[2]);
 }
 
 int InterpolatorBilinear::interpolateID(const cv::Mat& id_image,
-                                        const InterpolationWeights& weights) const {
+                                        const Weights& weights) const {
   // Since IDs can not be interpolated we assign weights to all IDs in the image
-  // based on the corner weights and return  the highest weights ID.
+  // based on the corner weights and return the highest weights ID.
+  // NOTE(nathan) this is not the same as just picking the maximum weight from the
+  // pixels
+  // TODO(nathan) consider manually implementing to avoid std::unordered_map memory
+  // usage
   std::unordered_map<int, float> ids;  // These are zero initialized by default.
   ids[id_image.at<int32_t>(weights.v, weights.u)] += weights.w0;
   ids[id_image.at<int32_t>(weights.v + 1, weights.u)] += weights.w1;
@@ -224,67 +240,36 @@ int InterpolatorBilinear::interpolateID(const cv::Mat& id_image,
       ->first;
 }
 
-std::optional<uint16_t> InterpolatorBilinear::interpolatePanoptic(
-    const std::optional<cv::Mat>& features_mask,
-    const InterpolationWeights& weights) const {
-  if (!features_mask) {
+std::optional<FeatureVector> InterpolatorBilinear::interpolateFeatures(
+    const std::optional<cv::Mat>& panoptic_image,
+    FeatureMap<int> semantic_features,
+    const Weights& weights) const {
+  if (!panoptic_image || semantic_features.empty()) {
     return std::nullopt;
   }
 
-  std::unordered_map<uint16_t, float> panoptic_weights;
-  panoptic_weights[features_mask.value().at<uint16_t>(weights.v, weights.u)] +=
-      weights.w0;
-  panoptic_weights[features_mask.value().at<uint16_t>(weights.v + 1, weights.u)] +=
-      weights.w1;
-  panoptic_weights[features_mask.value().at<uint16_t>(weights.v, weights.u + 1)] +=
-      weights.w2;
-  panoptic_weights[features_mask.value().at<uint16_t>(weights.v + 1, weights.u + 1)] +=
-      weights.w3;
+  const auto pan_id = panoptic_image.value().at<uint16_t>(weights.v, weights.u);
+  if (pan_id == 0) {
+    return std::nullopt;
+  }
 
-  uint16_t max_element = std::max_element(std::begin(panoptic_weights),
-                                          std::end(panoptic_weights),
-                                          [](const auto& p1, const auto& p2) {
-                                            return p1.second < p2.second;
-                                          })
-                             ->first;
-
-  if (max_element == 0) {
-    return std::nullopt;
-  }
-  return max_element;
-}
-
-std::optional<Eigen::VectorXf> InterpolatorBilinear::interpolateFeatures(
-    const std::optional<cv::Mat>& features_mask,
-    std::optional<std::unordered_map<uint16_t, Eigen::VectorXf>> semantic_features,
-    const InterpolationWeights& weights) const {
-  if (!features_mask || !semantic_features) {
-    return std::nullopt;
-  }
-  if (semantic_features.value().size() == 0) {
-    return std::nullopt;
-  }
-  const auto feature_index = features_mask.value().at<uint16_t>(weights.v, weights.u);
-  if (feature_index == 0) {
-    return std::nullopt;
-  }
-  const size_t feature_size = semantic_features.value().begin()->second.size();
+  const size_t feature_size = semantic_features.begin()->second.size();
   auto w0 = weights.w0;
   auto w1 = weights.w1;
   auto w2 = weights.w2;
   auto w3 = weights.w3;
 
-  Eigen::VectorXf c0, c1, c2, c3;
+  FeatureVector c0, c1, c2, c3;
   // Lambda to process weights and feature indices
   auto process_feature =
-      [&](float& weight, int v_offset, int u_offset, Eigen::VectorXf& result) {
-        auto& feature_index = features_mask.value().at<uint16_t>(weights.v + v_offset,
-                                                                 weights.u + u_offset);
-        if (feature_index == 0 || semantic_features.value().count(feature_index) == 0) {
+      [&](float& weight, int v_offset, int u_offset, FeatureVector& result) {
+        auto& pan_id = panoptic_image.value().at<uint16_t>(weights.v + v_offset,
+                                                           weights.u + u_offset);
+        if (pan_id == 0 || semantic_features.count(pan_id) == 0) {
           weight = 0.f;
-          result = Eigen::VectorXf::Zero(feature_size);
+          result = FeatureVector::Zero(feature_size);
         } else {
-          result = semantic_features.value().at(feature_index);
+          result = semantic_features.at(pan_id);
         }
       };
 
@@ -308,103 +293,223 @@ std::optional<Eigen::VectorXf> InterpolatorBilinear::interpolateFeatures(
   return w0 * c0 + w1 * c1 + w2 * c2 + w3 * c3;
 }
 
-InterpolationWeights InterpolatorAdaptive::computeWeights(
-    float u, float v, const cv::Mat& range_image) const {
-  // NOTE(lschmid): This is currently hard coded. Should probably be a param or similar.
-  constexpr float max_depth_difference = 0.2;  // m
+std::optional<uint16_t> InterpolatorBilinear::interpolatePanoptic(
+    const std::optional<cv::Mat>& panoptic_image, const Weights& weights) const {
+  if (!panoptic_image) {
+    return std::nullopt;
+  }
+  std::unordered_map<uint16_t, float> panoptic_weights;
+  panoptic_weights[panoptic_image.value().at<uint16_t>(weights.v, weights.u)] +=
+      weights.w0;
+  panoptic_weights[panoptic_image.value().at<uint16_t>(weights.v + 1, weights.u)] +=
+      weights.w1;
+  panoptic_weights[panoptic_image.value().at<uint16_t>(weights.v, weights.u + 1)] +=
+      weights.w2;
+  panoptic_weights[panoptic_image.value().at<uint16_t>(weights.v + 1, weights.u + 1)] +=
+      weights.w3;
 
-  InterpolationWeights weights(std::floor(u), std::floor(v));
+  auto max_element = std::max_element(std::begin(panoptic_weights),
+                                      std::end(panoptic_weights),
+                                      [](const auto& p1, const auto& p2) {
+                                        return p1.second < p2.second;
+                                      })
+                         ->first;
+
+  if (max_element == 0) {
+    return std::nullopt;
+  }
+  return max_element;
+}
+
+std::optional<FeatureVector> InterpolatorBilinear::interpolatePixelwiseFeature(
+    const std::optional<cv::Mat>& pixelwise_feature_image,
+    const Weights& weights,
+    const int orig_height,
+    const int orig_width) const {
+  if (!pixelwise_feature_image) {
+    return std::nullopt;
+  }
+
+  const cv::Mat& feature_image = pixelwise_feature_image.value();
+  CV_Assert(feature_image.depth() == CV_32F);
+
+  const int feat_h = feature_image.rows;
+  const int feat_w = feature_image.cols;
+  const int channels = feature_image.channels();
+
+  float scale_x = static_cast<float>(feat_w) / orig_width;
+  float scale_y = static_cast<float>(feat_h) / orig_height;
+
+  float fx = weights.u * scale_x;
+  float fy = weights.v * scale_y;
+
+  int x0 = static_cast<int>(fx);
+  int y0 = static_cast<int>(fy);
+  int x1 = std::min(x0 + 1, feat_w - 1);
+  int y1 = std::min(y0 + 1, feat_h - 1);
+
+  float dx = fx - x0;
+  float dy = fy - y0;
+
+  x0 = std::clamp(x0, 0, feat_w - 1);
+  y0 = std::clamp(y0, 0, feat_h - 1);
+
+  const float* p00 = feature_image.ptr<float>(y0, x0);
+  const float* p10 = feature_image.ptr<float>(y1, x0);
+  const float* p01 = feature_image.ptr<float>(y0, x1);
+  const float* p11 = feature_image.ptr<float>(y1, x1);
+
+  FeatureVector feature(channels);
+  for (int i = 0; i < channels; ++i) {
+    feature[i] = (1 - dx) * (1 - dy) * p00[i] + (1 - dx) * dy * p10[i] +
+                 dx * (1 - dy) * p01[i] + dx * dy * p11[i];
+  }
+
+  return feature;
+}
+
+void declare_config(InterpolatorAdaptive::Config& config) {
+  using namespace config;
+  config::name("InterpolatorAdaptive::Config");
+  field(config.max_depth_difference_m, "max_depth_difference_m", "m");
+  check(config.max_depth_difference_m, GE, 0.0f, "max_depth_difference_m");
+}
+
+InterpolatorAdaptive::InterpolatorAdaptive(const Config& config)
+    : InterpolatorBilinear({}), config(config::checkValid(config)) {}
+
+Weights InterpolatorAdaptive::computeWeights(float u,
+                                             float v,
+                                             const cv::Mat& ranges) const {
+  Weights weights(std::floor(u), std::floor(v));
   // Check max range difference.
+  bool use_nearest = false;
   float min = std::numeric_limits<float>::max();
   float max = std::numeric_limits<float>::lowest();
   for (size_t i = 0; i < 4; ++i) {
     const auto curr_v = weights.v + v_offset_[i];
     const auto curr_u = weights.u + u_offset_[i];
-    if (curr_v < 0 || curr_u < 0 || curr_v >= range_image.rows ||
-        curr_u >= range_image.cols) {
-      return weights;
+    if (curr_v < 0 || curr_u < 0 || curr_v >= ranges.rows || curr_u >= ranges.cols) {
+      continue;
     }
 
-    const float range = range_image.at<float>(curr_v, curr_u);
+    const float range = ranges.at<float>(curr_v, curr_u);
     max = std::max(range, max);
     min = std::min(range, min);
-    if (max - min > max_depth_difference) {
-      // interpolate nearest (manually)
-      InterpolationWeights new_weights(std::round(u), std::round(v));
-      new_weights.valid = true;
-      return new_weights;
+    if (max - min > config.max_depth_difference_m) {
+      use_nearest = true;
+      break;
     }
   }
 
-  return InterpolatorBilinear::computeWeights(u, v, range_image);
-}
-
-bool InterpolatorAdaptive::InterpolateRange(const cv::Mat& range_image,
-                                            const InterpolationWeights& weights,
-                                            float& d_to_surface,
-                                            const float min_range) const {
-  if (weights.use_bilinear) {
-    return InterpolatorBilinear::InterpolateRange(
-        range_image, weights, d_to_surface, min_range);
+  if (use_nearest) {
+    Weights weights(std::round(u), std::round(v));
+    weights.valid = weights.u >= 0 && weights.u < ranges.cols && weights.v >= 0 &&
+                    weights.v < ranges.rows;
+    return weights;
   }
-  d_to_surface = range_image.at<float>(weights.v, weights.u);
-  return d_to_surface > min_range;
+
+  return InterpolatorBilinear::computeWeights(u, v, ranges);
 }
 
-Color InterpolatorAdaptive::interpolateColor(
-    const cv::Mat& color_image, const InterpolationWeights& weights) const {
+float InterpolatorAdaptive::interpolateRange(const cv::Mat& range_image,
+                                             const Weights& weights) const {
+  if (weights.use_bilinear) {
+    return InterpolatorBilinear::interpolateRange(range_image, weights);
+  }
+
+  return range_image.at<float>(weights.v, weights.u);
+}
+
+Color InterpolatorAdaptive::interpolateColor(const cv::Mat& color_image,
+                                             const Weights& weights) const {
   if (weights.use_bilinear) {
     return InterpolatorBilinear::interpolateColor(color_image, weights);
   }
+
   auto color = color_image.at<cv::Vec3b>(weights.v, weights.u);
   return Color(color[0], color[1], color[2]);
 }
 
 int InterpolatorAdaptive::interpolateID(const cv::Mat& id_image,
-                                        const InterpolationWeights& weights) const {
+                                        const Weights& weights) const {
   if (weights.use_bilinear) {
     return InterpolatorBilinear::interpolateID(id_image, weights);
   }
+
   return id_image.at<int32_t>(weights.v, weights.u);
 }
 
-std::optional<uint16_t> InterpolatorAdaptive::interpolatePanoptic(
-    const std::optional<cv::Mat>& features_mask,
-    const InterpolationWeights& weights) const {
-  if (!features_mask) {
-    return std::nullopt;
-  }
-
-  if (weights.use_bilinear) {
-    return InterpolatorBilinear::interpolatePanoptic(features_mask, weights);
-  }
-
-  const auto feature_index = features_mask.value().at<uint16_t>(weights.v, weights.u);
-  if (feature_index == 0) {
-    return std::nullopt;
-  }
-  return features_mask.value().at<uint16_t>(weights.v, weights.u);
-}
-
-std::optional<Eigen::VectorXf> InterpolatorAdaptive::interpolateFeatures(
-    const std::optional<cv::Mat>& features_mask,
-    std::optional<std::unordered_map<uint16_t, Eigen::VectorXf>> semantic_features,
-    const InterpolationWeights& weights) const {
+std::optional<FeatureVector> InterpolatorAdaptive::interpolateFeatures(
+    const std::optional<cv::Mat>& panoptic_image,
+    FeatureMap<int> semantic_features,
+    const Weights& weights) const {
   if (weights.use_bilinear) {
     return InterpolatorBilinear::interpolateFeatures(
-        features_mask, semantic_features, weights);
+        panoptic_image, semantic_features, weights);
   }
-  if (!features_mask || !semantic_features) {
+  if (!panoptic_image || semantic_features.empty()) {
     return std::nullopt;
   }
-  if (semantic_features.value().size() == 0) {
+  const auto pan_id = panoptic_image.value().at<uint16_t>(weights.v, weights.u);
+  if (pan_id == 0) {
     return std::nullopt;
   }
-  const auto feature_index = features_mask.value().at<uint16_t>(weights.v, weights.u);
-  if (feature_index == 0) {
+  return semantic_features.at(pan_id);
+}
+
+std::optional<uint16_t> InterpolatorAdaptive::interpolatePanoptic(
+    const std::optional<cv::Mat>& panoptic_image, const Weights& weights) const {
+  if (!panoptic_image) {
     return std::nullopt;
   }
-  return semantic_features.value().at(feature_index);
+
+  if (weights.use_bilinear) {
+    return InterpolatorBilinear::interpolatePanoptic(panoptic_image, weights);
+  }
+
+  const auto pan_id = panoptic_image.value().at<uint16_t>(weights.v, weights.u);
+  if (pan_id == 0) {
+    return std::nullopt;
+  }
+  return pan_id;
+}
+
+std::optional<FeatureVector> InterpolatorAdaptive::interpolatePixelwiseFeature(
+    const std::optional<cv::Mat>& pixelwise_feature_image,
+    const Weights& weights,
+    const int orig_height,
+    const int orig_width) const {
+  if (!pixelwise_feature_image) {
+    return std::nullopt;
+  }
+  if (weights.use_bilinear) {
+    return InterpolatorBilinear::interpolatePixelwiseFeature(
+        pixelwise_feature_image, weights, orig_height, orig_width);
+  }
+
+  const cv::Mat& feature_image = pixelwise_feature_image.value();
+  CV_Assert(feature_image.depth() == CV_32F);
+
+  const int feat_h = feature_image.rows;
+  const int feat_w = feature_image.cols;
+  const int channels = feature_image.channels();
+
+  // Map original coords -> feature map coords
+  float scale_x = static_cast<float>(feat_w) / orig_width;
+  float scale_y = static_cast<float>(feat_h) / orig_height;
+
+  int u_feat = std::min(feat_w - 1, std::max(0, static_cast<int>(weights.u * scale_x)));
+  int v_feat = std::min(feat_h - 1, std::max(0, static_cast<int>(weights.v * scale_y)));
+
+  FeatureVector feature(channels);
+  const float* pixel = feature_image.ptr<float>(v_feat, u_feat);
+
+  for (int i = 0; i < channels; ++i) {
+    feature[i] = pixel[i];
+  }
+
+  return feature;
 }
 
 }  // namespace hydra

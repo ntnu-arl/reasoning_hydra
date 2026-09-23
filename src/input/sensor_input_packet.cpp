@@ -1,6 +1,3 @@
-// Portions of the following code and their modifications are originally from
-// https://github.com/MIT-SPARK/Hydra/tree/main and are licensed under the following
-// license:
 /* -----------------------------------------------------------------------------
  * Copyright 2022 Massachusetts Institute of Technology.
  * All Rights Reserved
@@ -35,12 +32,6 @@
  * Government is authorized to reproduce and distribute reprints for Government
  * purposes notwithstanding any copyright notation herein.
  * -------------------------------------------------------------------------- */
-
-// Copyright (c) 2025, Autonomous Robots Lab, Norwegian University of Science and
-// Technology All rights reserved.
-
-// This source code is licensed under the BSD-style license found in the
-// LICENSE file in the root directory of this source tree.
 #include "hydra/input/sensor_input_packet.h"
 
 #include <glog/logging.h>
@@ -50,73 +41,103 @@
 #include "hydra/common/global_info.h"
 
 namespace hydra {
+namespace {
 
-ImageInputPacket::ImageInputPacket(uint64_t stamp, size_t sensor_id)
-    : SensorInputPacket(stamp, sensor_id) {}
+inline std::string showImageDim(const cv::Mat& mat) {
+  std::stringstream ss;
+  ss << "[rows=" << mat.rows << ", cols=" << mat.cols << "]";
+  return ss.str();
+}
 
-bool ImageInputPacket::fillInputData(InputData& msg) const {
-  if (depth.empty()) {
-    LOG(ERROR) << "Missing required images: Depth image must be set.";
-    return false;
-  }
-  if (color.empty() && labels.empty()) {
-    LOG(ERROR) << "Missing required images: Color or label image must be set.";
-    return false;
-  }
+inline bool sizesMatch(const cv::Mat& lhs, const cv::Mat& rhs) {
+  return lhs.rows == rhs.rows && lhs.cols == rhs.cols;
+}
 
+}  // namespace
+
+bool SensorInputPacket::fillInputData(InputData& msg) const {
   msg.timestamp_ns = timestamp_ns;
+  msg.feature = input_feature;
+  return fillInputDataImpl(msg);
+}
+
+ImageInputPacket::ImageInputPacket(uint64_t stamp, const std::string& sensor_name)
+    : SensorInputPacket(stamp, sensor_name) {}
+
+bool ImageInputPacket::fillInputDataImpl(InputData& msg) const {
+  if (depth.empty()) {
+    LOG(ERROR) << "Missing required images: depth image must be set.";
+    return false;
+  }
+
+  if (color.empty() && labels.empty()) {
+    LOG(ERROR) << "Missing required images: color or label image must be set.";
+    return false;
+  }
+
   msg.color_image = color;
-  if (color_is_bgr) {
+  if (color_is_bgr && !msg.color_image.empty()) {
     cv::cvtColor(msg.color_image, msg.color_image, cv::COLOR_BGR2RGB);
   }
+
   msg.depth_image = depth;
   msg.label_image = labels;
-  msg.features_mask = features_mask;
-  msg.semantic_features = semantic_features;
-  msg.image_feature = image_feature;
-  msg.relations = relations;
+  msg.label_features = label_features;
+  msg.panoptic_ids_image = panoptic_ids;
+  msg.pixelwise_features = pixelwise_features;
+
+  if (!msg.label_image.empty() && !sizesMatch(msg.depth_image, msg.label_image)) {
+    LOG(ERROR) << "Label dimensions " << showImageDim(msg.label_image)
+               << " do not match depth dimensions " << showImageDim(msg.depth_image);
+    return false;
+  }
+
+  if (!msg.color_image.empty() && !sizesMatch(msg.depth_image, msg.color_image)) {
+    LOG(ERROR) << "Color dimensions " << showImageDim(msg.color_image)
+               << " do not match depth dimensions " << showImageDim(msg.depth_image);
+    return false;
+  }
+
+  if (panoptic_ids.has_value()) {
+    if (!sizesMatch(msg.depth_image, panoptic_ids.value())) {
+      LOG(ERROR) << "Panoptic ID dimensions " << showImageDim(panoptic_ids.value())
+                 << " do not match depth dimensions " << showImageDim(msg.depth_image);
+      return false;
+    }
+  }
 
   return true;
 }
 
-CloudInputPacket::CloudInputPacket(uint64_t stamp, size_t sensor_id)
-    : SensorInputPacket(stamp, sensor_id) {}
+CloudInputPacket::CloudInputPacket(uint64_t stamp, const std::string& sensor_name)
+    : SensorInputPacket(stamp, sensor_name) {}
 
-bool CloudInputPacket::fillInputData(InputData& msg) const {
+bool CloudInputPacket::fillInputDataImpl(InputData& msg) const {
   if (points.empty() || (labels.empty() && colors.empty())) {
     LOG(ERROR) << "Missing required pointcloud.";
     return false;
   }
 
-  msg.timestamp_ns = timestamp_ns;
   msg.vertex_map = points;
   msg.points_in_world_frame = in_world_frame;
   msg.color_image = colors;
   msg.label_image = labels;
-  return true;
-}
 
-EnhancedCloudInputPacket::EnhancedCloudInputPacket(uint64_t stamp, size_t sensor_id)
-    : SensorInputPacket(stamp, sensor_id) {}
-
-bool EnhancedCloudInputPacket::fillInputData(InputData& msg) const {
-  if (points.empty() || (labels.empty() && colors.empty())) {
-    LOG(ERROR) << "Missing required pointcloud.";
+  if (!msg.label_image.empty() && !sizesMatch(msg.vertex_map, msg.label_image)) {
+    LOG(ERROR) << "Label dimensions " << showImageDim(msg.label_image)
+               << " do not match pointcloud dimensions "
+               << showImageDim(msg.vertex_map);
     return false;
   }
 
-  msg.timestamp_ns = timestamp_ns;
-  msg.vertex_map = points;
-  msg.points_in_world_frame = in_world_frame;
-  msg.color_image = colors;
-  msg.label_image = labels;
-  msg.features_mask = features_mask;
-  msg.semantic_features = semantic_features;
-  msg.image_feature = image_feature;
-  msg.relations = relations;
-  msg.valid = valid;
-  msg.sensor1_T_sensor2 = cam_T_lidar;
+  if (!msg.color_image.empty() && !sizesMatch(msg.vertex_map, msg.color_image)) {
+    LOG(ERROR) << "Color dimensions " << showImageDim(msg.color_image)
+               << " do not match pointcloud dimensions "
+               << showImageDim(msg.vertex_map);
+    return false;
+  }
 
   return true;
 }
+
 }  // namespace hydra

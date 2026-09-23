@@ -1,6 +1,3 @@
-// Portions of the following code and their modifications are originally from
-// https://github.com/MIT-SPARK/Hydra/tree/main and are licensed under the following
-// license:
 /* -----------------------------------------------------------------------------
  * Copyright 2022 Massachusetts Institute of Technology.
  * All Rights Reserved
@@ -35,18 +32,7 @@
  * Government is authorized to reproduce and distribute reprints for Government
  * purposes notwithstanding any copyright notation herein.
  * -------------------------------------------------------------------------- */
-
-// Copyright (c) 2025, Autonomous Robots Lab, Norwegian University of Science and
-// Technology All rights reserved.
-
-// This source code is licensed under the BSD-style license found in the
-// LICENSE file in the root directory of this source tree.
 #pragma once
-
-#include <map>
-#include <memory>
-#include <string>
-
 #include "hydra/common/global_info.h"
 #include "hydra/common/module.h"
 #include "hydra/common/shared_module_state.h"
@@ -67,7 +53,8 @@ class HydraPipeline {
 
   virtual void stop();
 
-  virtual void save();
+  // TODO(nathan) expand API?
+  virtual void save(const DataDirectory& output) const;
 
   template <typename Derived = Module>
   Derived* getModule(const std::string& name) {
@@ -82,7 +69,7 @@ class HydraPipeline {
  protected:
   void showModules() const;
 
-  std::string getModuleInfo(const std::string& name, const Module* module) const;
+  std::string getModuleInfo(const std::string& name, const Module* mod) const;
 
  protected:
   int config_verbosity_;

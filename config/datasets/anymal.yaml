@@ -1,0 +1,179 @@
+---
+map_window:
+  type: spatial
+  max_radius_m: 8.0
+active_window:
+  full_update_separation_s: 0.2
+  volumetric_map:
+    voxels_per_side: 16
+    voxel_size: 0.1
+    truncation_distance: 0.3
+  tsdf:
+    semantic_integrator:
+      type: MLESemanticIntegrator
+    num_threads: -1
+  occupancy:
+    occupied_distance: 0.15
+    clear_occupied_on_free: true
+    use_free_space_evidence: true
+    min_free_space_voxels: 1
+    min_free_space_fraction: 0.75
+    min_observation_weight: 1.0e-5
+    min_height: -0.4
+    max_height: -0.1
+    max_integration_radius_m: 5.0
+    unknown_padding_cells: 1
+    features_collapse_mode: SURFACES # ALL | HEIGHT | SURFACES
+    initial_sphere_free: true
+    initial_sphere_radius_m: 0.7
+  compute_occupancy: true
+frontend:
+  graph_connector:
+    layers: [{parent_layer: TRAVERSABILITY}] # 3D: PLACES, 2D: TRAVERSABILITY
+  pgmo:
+    time_horizon: 15.0
+    d_graph_resolution: 2.5
+    mesh_resolution: 0.005
+  objects:
+    min_cluster_size: 40
+    cluster_tolerance: 0.25
+  surface_places:
+    type: place_2d
+    prefix: P
+    pure_final_place_size: 1
+    cluster_tolerance: .3
+    min_cluster_size: 50
+    max_cluster_size: 100000
+    min_final_place_points: 10
+    place_max_neighbor_z_diff: .5
+    place_overlap_threshold: 0.0
+  freespace_places:
+    type: gvd
+    filter_places: true
+    min_places_component_size: 3
+    filter_ground: false
+    gvd:
+      max_distance_m: 4.5
+      min_distance_m: 0.2
+      min_diff_m: 0.1
+      voronoi_config:
+        mode: L1_THEN_ANGLE
+        min_distance_m: 0.30
+        parent_l1_separation: 20
+        parent_cos_angle_separation: 0.2
+    graph:
+      type: CompressionGraphExtractor
+      compression_distance_m: 1.5
+      min_node_distance_m: 0.4
+      min_edge_distance_m: 0.25
+      node_merge_distance_m: 0.7
+      merge_policy: distance
+    tsdf_interpolator:
+      type: downsample
+      ratio: 2
+  place_2d_interface:
+    type: gvd
+    layer: TRAVERSABILITY
+    extractor_config:
+      map_inflation: 0.3
+      segment_length: 0.6
+      crossing_optimization: 0.4
+      end_segmentation_optimization: 0.2
+  use_frontiers: false
+  frontier_places:
+    type: voxel_clustering
+    cluster_tolerance: 0.3
+    min_cluster_size: 10
+    max_cluster_size: 100000
+    max_place_radius: 5
+    dense_frontiers: false
+    frontier_splitting_threshold: 0.3
+    point_threshold: 10
+    culling_point_threshold: 50
+    # recent_block_distance: 25
+    recent_block_distance: 25
+    # minimum_relative_z: -1.
+    # maximum_relative_z: 1
+  use_global_frontiers: true
+  global_frontier_detector:
+    type: OccupancyFrontierExtractor #TsdfFrontierExtractor
+    prefix: f
+    nav_layer: TRAVERSABILITY # 3D: PLACES, 2D: TRAVERSABILITY
+    object_connection_max_distance: 3.0
+    min_cluster_size: 1.0
+    use_initial_pose: false
+    detection_mode: WFD  # WFD | GLOBAL
+    local_frontiers: false
+    max_radius_m: 8.0
+    features_collection_mode: CLUSTER_RADIUS  # FRONTIER_POINTS | CLUSTER_RADIUS | FRONTIER_POINTS_RADIUS
+    features_radius: 1.0
+    set_centroid_to_nearest_nav_node: false
+    inflation_radius_m: 0.05
+backend:
+  add_places_to_deformation_graph: true
+  optimize_on_lc: true
+  classify_rooms: NONE # NONE | TIME | POSITION | NEXT_ROOM
+  room_class_period_s: 20.0
+  room_class_position_threshold_m: 10.0
+  enable_node_merging: true
+  update_functors:
+    agents:
+      type: UpdateAgentsFunctor
+      enable_agent_keyframes: true
+      cos_sim_thresh: 0.8
+      min_translation_m: 1.0
+      min_rotation_deg: 30.0
+    objects:
+      type: UpdateObjectsFunctor
+    surface_places:
+      type: Update2dPlacesFunctor
+    places:
+      type: UpdatePlacesFunctor
+    frontiers:
+      type: UpdateFrontiersFunctor
+    global_frontiers:
+      type: UpdateGlobalFrontiersFunctor
+      object_connection_max_distance: 3.0
+      nav_layer: TRAVERSABILITY # 3D: PLACES, 2D: TRAVERSABILITY
+    rooms:
+      type: UpdateRoomsFunctor
+      room_finder:
+        min_dilation_m: 0.1           # Start very low to catch narrow doorways
+        max_dilation_m: 1.0           # Lower ceiling - don't let rooms merge
+        min_component_size: 5         # Lower to ensure components survive
+        min_room_size: 8              # Lower to accept smaller rooms
+        dilation_threshold_mode: LONGEST_LIFETIME  # More robust
+        min_lifetime_length_m: 0.1    # How long components must persist
+        plateau_ratio: 0.15           # Keep your original value
+        clustering_mode: NEIGHBORS
+        dilation_diff_threshold_m: 0.0001  # Fix the -1.0 value
+        clip_dilation_window_to_max: true  # Stop at peak, don't overshoot
+        min_window_size: 0.15
+    buildings:
+      type: UpdateBuildingsFunctor
+    zmq_labels:
+      type: ZmqRoomLabelUpdater
+  pgmo:
+    run_mode: FULL  # kimera_pgmo run mode FULL is required
+    embed_trajectory_delta_t: 5.0
+    num_interp_pts: 3
+    interp_horizon: 10.0
+    optimizer:
+      type: KimeraRpgoOptimizer
+      solver: LM
+      gnc:
+        inlier_probability: 0.9
+        mu_step: 1.6
+        max_iterations: 100
+    add_initial_prior: true
+    covariance:
+      odom: 1.0e-02
+      loop_close: 5.0e-02
+      sg_loop_close: 1.0e-01
+      prior: 1.0e-02
+      mesh_mesh: 1.0e-02
+      pose_mesh: 1.0e-02
+      place_mesh: 1.0e-02
+      place_edge: 10.0
+      place_merge: 10.0
+      object_merge: 10.0

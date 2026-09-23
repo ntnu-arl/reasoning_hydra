@@ -1,0 +1,308 @@
+---
+total_semantic_labels: 151
+dynamic_labels: []
+invalid_labels: []
+object_labels:
+  - 0
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+  - 6
+  - 7
+  - 8
+  - 9
+  - 10
+  - 11
+  - 12
+  - 13
+  - 14
+  - 15
+  - 16
+  - 17
+  - 18
+  - 19
+  - 20
+  - 21
+  - 22
+  - 23
+  - 24
+  - 25
+  - 26
+  - 27
+  - 28
+  - 29
+  - 30
+  - 31
+  - 32
+  - 33
+  - 34
+  - 35
+  - 36
+  - 37
+  - 38
+  - 39
+  - 40
+  - 41
+  - 42
+  - 43
+  - 44
+  - 45
+  - 46
+  - 47
+  - 48
+  - 49
+  - 50
+  - 51
+  - 52
+  - 53
+  - 54
+  - 55
+  - 56
+  - 57
+  - 58
+  - 59
+  - 60
+  - 61
+  - 62
+  - 63
+  - 64
+  - 65
+  - 66
+  - 67
+  - 68
+  - 69
+  - 70
+  - 71
+  - 72
+  - 73
+  - 74
+  - 75
+  - 76
+  - 77
+  - 78
+  - 79
+  - 80
+  - 81
+  - 82
+  - 83
+  - 84
+  - 85
+  - 86
+  - 87
+  - 88
+  - 89
+  - 90
+  - 91
+  - 92
+  - 93
+  - 94
+  - 95
+  - 96
+  - 97
+  - 98
+  - 99
+  - 100
+  - 101
+  - 102
+  - 103
+  - 104
+  - 105
+  - 106
+  - 107
+  - 108
+  - 109
+  - 110
+  - 111
+  - 112
+  - 113
+  - 114
+  - 115
+  - 116
+  - 117
+  - 118
+  - 119
+  - 120
+  - 121
+  - 122
+  - 123
+  - 124
+  - 125
+  - 126
+  - 127
+  - 128
+  - 129
+  - 130
+  - 131
+  - 132
+  - 133
+  - 134
+  - 135
+  - 136
+  - 137
+  - 138
+  - 139
+  - 140
+  - 141
+  - 142
+  - 143
+  - 144
+  - 145
+  - 146
+  - 147
+  - 148
+  - 149
+surface_places_labels: []
+label_names:
+  - {label: 0, name: free, name_descriptive: free}
+  - {label: 1, name: free, name_descriptive: free}
+  - {label: 2, name: free, name_descriptive: free}
+  - {label: 3, name: free, name_descriptive: free}
+  - {label: 4, name: free, name_descriptive: free}
+  - {label: 5, name: free, name_descriptive: free}
+  - {label: 6, name: free, name_descriptive: free}
+  - {label: 7, name: free, name_descriptive: free}
+  - {label: 8, name: free, name_descriptive: free}
+  - {label: 9, name: free, name_descriptive: free}
+  - {label: 10, name: free, name_descriptive: free}
+  - {label: 11, name: free, name_descriptive: free}
+  - {label: 12, name: free, name_descriptive: free}
+  - {label: 13, name: free, name_descriptive: free}
+  - {label: 14, name: free, name_descriptive: free}
+  - {label: 15, name: free, name_descriptive: free}
+  - {label: 16, name: free, name_descriptive: free}
+  - {label: 17, name: free, name_descriptive: free}
+  - {label: 18, name: free, name_descriptive: free}
+  - {label: 19, name: free, name_descriptive: free}
+  - {label: 20, name: free, name_descriptive: free}
+  - {label: 21, name: free, name_descriptive: free}
+  - {label: 22, name: free, name_descriptive: free}
+  - {label: 23, name: free, name_descriptive: free}
+  - {label: 24, name: free, name_descriptive: free}
+  - {label: 25, name: free, name_descriptive: free}
+  - {label: 26, name: free, name_descriptive: free}
+  - {label: 27, name: free, name_descriptive: free}
+  - {label: 28, name: free, name_descriptive: free}
+  - {label: 29, name: free, name_descriptive: free}
+  - {label: 30, name: free, name_descriptive: free}
+  - {label: 31, name: free, name_descriptive: free}
+  - {label: 32, name: free, name_descriptive: free}
+  - {label: 33, name: free, name_descriptive: free}
+  - {label: 34, name: free, name_descriptive: free}
+  - {label: 35, name: free, name_descriptive: free}
+  - {label: 36, name: free, name_descriptive: free}
+  - {label: 37, name: free, name_descriptive: free}
+  - {label: 38, name: free, name_descriptive: free}
+  - {label: 39, name: free, name_descriptive: free}
+  - {label: 40, name: free, name_descriptive: free}
+  - {label: 41, name: free, name_descriptive: free}
+  - {label: 42, name: free, name_descriptive: free}
+  - {label: 43, name: free, name_descriptive: free}
+  - {label: 44, name: free, name_descriptive: free}
+  - {label: 45, name: free, name_descriptive: free}
+  - {label: 46, name: free, name_descriptive: free}
+  - {label: 47, name: free, name_descriptive: free}
+  - {label: 48, name: free, name_descriptive: free}
+  - {label: 49, name: free, name_descriptive: free}
+  - {label: 50, name: free, name_descriptive: free}
+  - {label: 51, name: free, name_descriptive: free}
+  - {label: 52, name: free, name_descriptive: free}
+  - {label: 53, name: free, name_descriptive: free}
+  - {label: 54, name: free, name_descriptive: free}
+  - {label: 55, name: free, name_descriptive: free}
+  - {label: 56, name: free, name_descriptive: free}
+  - {label: 57, name: free, name_descriptive: free}
+  - {label: 58, name: free, name_descriptive: free}
+  - {label: 59, name: free, name_descriptive: free}
+  - {label: 60, name: free, name_descriptive: free}
+  - {label: 61, name: free, name_descriptive: free}
+  - {label: 62, name: free, name_descriptive: free}
+  - {label: 63, name: free, name_descriptive: free}
+  - {label: 64, name: free, name_descriptive: free}
+  - {label: 65, name: free, name_descriptive: free}
+  - {label: 66, name: free, name_descriptive: free}
+  - {label: 67, name: free, name_descriptive: free}
+  - {label: 68, name: free, name_descriptive: free}
+  - {label: 69, name: free, name_descriptive: free}
+  - {label: 70, name: free, name_descriptive: free}
+  - {label: 71, name: free, name_descriptive: free}
+  - {label: 72, name: free, name_descriptive: free}
+  - {label: 73, name: free, name_descriptive: free}
+  - {label: 74, name: free, name_descriptive: free}
+  - {label: 75, name: free, name_descriptive: free}
+  - {label: 76, name: free, name_descriptive: free}
+  - {label: 77, name: free, name_descriptive: free}
+  - {label: 78, name: free, name_descriptive: free}
+  - {label: 79, name: free, name_descriptive: free}
+  - {label: 80, name: free, name_descriptive: free}
+  - {label: 81, name: free, name_descriptive: free}
+  - {label: 82, name: free, name_descriptive: free}
+  - {label: 83, name: free, name_descriptive: free}
+  - {label: 84, name: free, name_descriptive: free}
+  - {label: 85, name: free, name_descriptive: free}
+  - {label: 86, name: free, name_descriptive: free}
+  - {label: 87, name: free, name_descriptive: free}
+  - {label: 88, name: free, name_descriptive: free}
+  - {label: 89, name: free, name_descriptive: free}
+  - {label: 90, name: free, name_descriptive: free}
+  - {label: 91, name: free, name_descriptive: free}
+  - {label: 92, name: free, name_descriptive: free}
+  - {label: 93, name: free, name_descriptive: free}
+  - {label: 94, name: free, name_descriptive: free}
+  - {label: 95, name: free, name_descriptive: free}
+  - {label: 96, name: free, name_descriptive: free}
+  - {label: 97, name: free, name_descriptive: free}
+  - {label: 98, name: free, name_descriptive: free}
+  - {label: 99, name: free, name_descriptive: free}
+  - {label: 100, name: free, name_descriptive: free}
+  - {label: 101, name: free, name_descriptive: free}
+  - {label: 102, name: free, name_descriptive: free}
+  - {label: 103, name: free, name_descriptive: free}
+  - {label: 104, name: free, name_descriptive: free}
+  - {label: 105, name: free, name_descriptive: free}
+  - {label: 106, name: free, name_descriptive: free}
+  - {label: 107, name: free, name_descriptive: free}
+  - {label: 108, name: free, name_descriptive: free}
+  - {label: 109, name: free, name_descriptive: free}
+  - {label: 110, name: free, name_descriptive: free}
+  - {label: 111, name: free, name_descriptive: free}
+  - {label: 112, name: free, name_descriptive: free}
+  - {label: 113, name: free, name_descriptive: free}
+  - {label: 114, name: free, name_descriptive: free}
+  - {label: 115, name: free, name_descriptive: free}
+  - {label: 116, name: free, name_descriptive: free}
+  - {label: 117, name: free, name_descriptive: free}
+  - {label: 118, name: free, name_descriptive: free}
+  - {label: 119, name: free, name_descriptive: free}
+  - {label: 120, name: free, name_descriptive: free}
+  - {label: 121, name: free, name_descriptive: free}
+  - {label: 122, name: free, name_descriptive: free}
+  - {label: 123, name: free, name_descriptive: free}
+  - {label: 124, name: free, name_descriptive: free}
+  - {label: 125, name: free, name_descriptive: free}
+  - {label: 126, name: free, name_descriptive: free}
+  - {label: 127, name: free, name_descriptive: free}
+  - {label: 128, name: free, name_descriptive: free}
+  - {label: 129, name: free, name_descriptive: free}
+  - {label: 130, name: free, name_descriptive: free}
+  - {label: 131, name: free, name_descriptive: free}
+  - {label: 132, name: free, name_descriptive: free}
+  - {label: 133, name: free, name_descriptive: free}
+  - {label: 134, name: free, name_descriptive: free}
+  - {label: 135, name: free, name_descriptive: free}
+  - {label: 136, name: free, name_descriptive: free}
+  - {label: 137, name: free, name_descriptive: free}
+  - {label: 138, name: free, name_descriptive: free}
+  - {label: 139, name: free, name_descriptive: free}
+  - {label: 140, name: free, name_descriptive: free}
+  - {label: 141, name: free, name_descriptive: free}
+  - {label: 142, name: free, name_descriptive: free}
+  - {label: 143, name: free, name_descriptive: free}
+  - {label: 144, name: free, name_descriptive: free}
+  - {label: 145, name: free, name_descriptive: free}
+  - {label: 146, name: free, name_descriptive: free}
+  - {label: 147, name: free, name_descriptive: free}
+  - {label: 148, name: free, name_descriptive: free}
+  - {label: 149, name: free, name_descriptive: free}
+  - {label: 150, name: unknown, name_descriptive: unknown}

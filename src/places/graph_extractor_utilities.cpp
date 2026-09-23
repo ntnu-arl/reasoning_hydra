@@ -34,9 +34,10 @@
  * -------------------------------------------------------------------------- */
 #include "hydra/places/graph_extractor_utilities.h"
 
+#include <config_utilities/config.h>
+#include <spark_dsg/graph_utilities.h>
 #include <spatial_hash/neighbor_utils.h>
 
-#include "hydra/places/nearest_voxel_utilities.h"
 #include "hydra/utils/nearest_neighbor_utilities.h"
 
 namespace hydra::places {
@@ -62,6 +63,22 @@ void sortComponents(const SceneGraphLayer& graph, Components& to_sort) {
 }
 
 }  // namespace
+
+void declare_config(OverlapEdgeConfig& conf) {
+  using namespace config;
+  name("OverlapEdgeConfig");
+  field(conf.num_neighbors_to_check, "num_neighbors_to_check");
+  field(conf.min_clearance_m, "min_clearance_m");
+}
+
+void declare_config(FreespaceEdgeConfig& conf) {
+  using namespace config;
+  name("FreespaceEdgeConfig");
+  field(conf.max_length_m, "max_length_m");
+  field(conf.num_nodes_to_check, "num_nodes_to_check");
+  field(conf.num_neighbors_to_find, "num_neighbors_to_find");
+  field(conf.min_clearance_m, "min_clearance_m");
+}
 
 // implementation loosely based on: https://gist.github.com/yamamushi/5823518
 GlobalIndices makeBresenhamLine(const GlobalIndex& start, const GlobalIndex& end) {
@@ -128,7 +145,8 @@ EdgeAttributes::Ptr getOverlapEdgeInfo(const SceneGraphLayer& graph,
 
   const double r1 = getNodeGvdDistance(graph, node);
   const double r2 = getNodeGvdDistance(graph, neighbor);
-  const double d = (graph.getPosition(node) - graph.getPosition(neighbor)).norm();
+  const double d =
+      (getNodePosition(graph, node) - getNodePosition(graph, neighbor)).norm();
 
   if (d >= r1 + r2) {
     return nullptr;
@@ -197,7 +215,7 @@ void findOverlapEdges(const OverlapEdgeConfig& config,
   NearestNodeFinder node_finder(graph, active_nodes);
   for (const auto node : active_nodes) {
     // TODO(nathan) consider deleting edges
-    node_finder.find(graph.getPosition(node),
+    node_finder.find(getNodePosition(graph, node),
                      config.num_neighbors_to_check,
                      true,
                      [&](NodeId other, size_t, double) {
@@ -239,7 +257,7 @@ void findFreespaceEdges(const FreespaceEdgeConfig& config,
       }
 
       const NodeId node = component[j];
-      node_finder.find(graph.getPosition(node),
+      node_finder.find(getNodePosition(graph, node),
                        config.num_neighbors_to_find,
                        false,
                        [&](NodeId other, size_t, double distance) {

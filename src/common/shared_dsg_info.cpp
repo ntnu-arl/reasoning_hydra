@@ -1,6 +1,3 @@
-// Portions of the following code and their modifications are originally from
-// https://github.com/MIT-SPARK/Hydra/tree/main and are licensed under the following
-// license:
 /* -----------------------------------------------------------------------------
  * Copyright 2022 Massachusetts Institute of Technology.
  * All Rights Reserved
@@ -35,37 +32,67 @@
  * Government is authorized to reproduce and distribute reprints for Government
  * purposes notwithstanding any copyright notation herein.
  * -------------------------------------------------------------------------- */
-
-// Copyright (c) 2025, Autonomous Robots Lab, Norwegian University of Science and
-// Technology All rights reserved.
-
-// This source code is licensed under the BSD-style license found in the
-// LICENSE file in the root directory of this source tree.
 #include "hydra/common/shared_dsg_info.h"
+
+#include <config_utilities/config.h>
+#include <glog/logging.h>
+
+namespace YAML {
+
+template <>
+struct convert<spark_dsg::LayerKey> {
+  static Node encode(const spark_dsg::LayerKey& key) {
+    Node node;
+    node["layer"] = key.layer;
+    node["partition"] = key.partition;
+    return node;
+  }
+
+  static bool decode(const Node& node, spark_dsg::LayerKey& key) {
+    if (node.IsScalar()) {
+      key = node.as<spark_dsg::LayerId>();
+      return true;
+    }
+
+    if (!node["layer"]) {
+      LOG(ERROR) << "Invalid layer key '" << node << "', missing layer!";
+      return false;
+    }
+
+    const spark_dsg::LayerId layer = node["layer"].as<spark_dsg::LayerId>();
+    spark_dsg::PartitionId partition = 0;
+    if (node["partition"]) {
+      partition = node["partition"].as<spark_dsg::PartitionId>();
+    }
+
+    key = {layer, partition};
+    return true;
+  }
+};
+
+}  // namespace YAML
 
 namespace hydra {
 
-SharedDsgInfo::SharedDsgInfo(const std::map<LayerId, char>& layer_id_map)
-    : updated(false), last_update_time(0), layer_prefix_map(layer_id_map) {
-  DynamicSceneGraph::LayerIds layer_ids;
-  for (auto&& [layer, prefix] : layer_id_map) {
-    layer_ids.push_back(layer);
-    prefix_layer_map[prefix] = layer;
-  }
+using namespace spark_dsg;
 
-  graph.reset(new DynamicSceneGraph(layer_ids));
+SharedDsgInfo::SharedDsgInfo(const Config& config)
+    : updated(false), sequence_number(0) {
+  graph = DynamicSceneGraph::fromNames(config.layers);
 }
 
-SharedDsgInfo::SharedDsgInfo() {}
-
 SharedDsgInfo::Ptr SharedDsgInfo::clone() const {
-  SharedDsgInfo::Ptr other(new SharedDsgInfo());
+  auto other = std::make_shared<SharedDsgInfo>(config);
   other->updated = updated.load();
-  other->last_update_time = last_update_time;
+  other->sequence_number = sequence_number;
   other->graph = graph->clone();
-  other->prefix_layer_map = prefix_layer_map;
-  other->layer_prefix_map = layer_prefix_map;
   return other;
+}
+
+void declare_config(SharedDsgInfo::Config& config) {
+  using namespace config;
+  name("SharedDsgInfo::Config");
+  field(config.layers, "layers");
 }
 
 }  // namespace hydra

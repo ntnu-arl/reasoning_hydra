@@ -31,49 +31,20 @@
 //
 // See https://github.com/ethz-asl/panoptic_mapping for original code and paper
 //
-// Portions of the following code and their modifications are originally from
-// https://github.com/MIT-SPARK/Hydra/tree/main and are licensed under the following
-// license:
-/* -----------------------------------------------------------------------------
- * Copyright 2022 Massachusetts Institute of Technology.
- * All Rights Reserved
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *
- *  1. Redistributions of source code must retain the above copyright notice,
- *     this list of conditions and the following disclaimer.
- *
- *  2. Redistributions in binary form must reproduce the above copyright notice,
- *     this list of conditions and the following disclaimer in the documentation
- *     and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
- * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
- * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
- * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Research was sponsored by the United States Air Force Research Laboratory and
- * the United States Air Force Artificial Intelligence Accelerator and was
- * accomplished under Cooperative Agreement Number FA8750-19-2-1000. The views
- * and conclusions contained in this document are those of the authors and should
- * not be interpreted as representing the official policies, either expressed or
- * implied, of the United States Air Force or the U.S. Government. The U.S.
- * Government is authorized to reproduce and distribute reprints for Government
- * purposes notwithstanding any copyright notation herein.
- * -------------------------------------------------------------------------- */
-
-// Copyright (c) 2025, Autonomous Robots Lab, Norwegian University of Science and
-// Technology All rights reserved.
-
-// This source code is licensed under the BSD-style license found in the
-// LICENSE file in the root directory of this source tree.
+// Modifications (including work done by Lukas Schmid for Khronos) fall under the same
+// license as Hydra and are subject to the following copyright and disclaimer:
+//
+// Copyright 2022 Massachusetts Institute of Technology.
+// All Rights Reserved
+//
+// Research was sponsored by the United States Air Force Research Laboratory and
+// the United States Air Force Artificial Intelligence Accelerator and was
+// accomplished under Cooperative Agreement Number FA8750-19-2-1000. The views
+// and conclusions contained in this document are those of the authors and should
+// not be interpreted as representing the official policies, either expressed or
+// implied, of the United States Air Force or the U.S. Government. The U.S.
+// Government is authorized to reproduce and distribute reprints for Government
+// purposes notwithstanding any copyright notation herein.
 #include "hydra/reconstruction/volumetric_map.h"
 
 #include <config_utilities/config_utilities.h>
@@ -90,32 +61,24 @@ void declare_config(VolumetricMap::Config& config) {
   field(config.voxel_size, "voxel_size", "m");
   field(config.voxels_per_side, "voxels_per_side");
   field(config.truncation_distance, "truncation_distance", "m");
-  field(config.with_pointcloud, "with_pointcloud");
-  field(config.pointcloud_voxel_size, "pointcloud_voxel_size", "m");
-  field(config.pointcloud_voxels_per_side, "pointcloud_voxels_per_side");
+  field(config.with_semantics, "with_semantics");
+  field(config.with_tracking, "with_tracking");
 
   check(config.voxel_size, GT, 0, "voxel_size");
   check(config.voxels_per_side, GT, 0, "voxels_per_side");
   check(config.truncation_distance, GT, 0, "truncation_distance");
-  check(config.pointcloud_voxel_size, GT, 0, "pointcloud_voxel_size");
-  check(config.pointcloud_voxels_per_side, GT, 0, "pointcloud_voxels_per_side");
 }
 
-VolumetricMap::VolumetricMap(const Config& _config,
-                             bool with_semantics,
-                             bool with_tracking)
+VolumetricMap::VolumetricMap(const Config& _config)
     : config(config::checkValid(_config)),
       tsdf_layer_(config.voxel_size, config.voxels_per_side),
       mesh_layer_(tsdf_layer_.blockSize()) {
-  if (with_semantics) {
+  if (config.with_semantics) {
     semantic_layer_.reset(new SemanticLayer(config.voxel_size, config.voxels_per_side));
   }
-  if (with_tracking) {
+
+  if (config.with_tracking) {
     tracking_layer_.reset(new TrackingLayer(config.voxel_size, config.voxels_per_side));
-  }
-  if (config.with_pointcloud) {
-    base_semantic_pointcloud_.reset(new BaseSemanticPointCloud(
-        config.pointcloud_voxel_size, config.pointcloud_voxels_per_side));
   }
 }
 
@@ -144,19 +107,6 @@ BlockIndices VolumetricMap::allocateBlocks(const BlockIndices& blocks) {
   return new_blocks;
 }
 
-BlockIndices VolumetricMap::allocatePointCloudBlocks(const BlockIndices& blocks) {
-  BlockIndices new_blocks;
-  if (base_semantic_pointcloud_) {
-    for (const auto& idx : blocks) {
-      if (!base_semantic_pointcloud_->hasBlock(idx)) {
-        base_semantic_pointcloud_->allocateBlock(idx);
-        new_blocks.push_back(idx);
-      }
-    }
-  }
-  return new_blocks;
-}
-
 void VolumetricMap::removeBlock(const BlockIndex& block_index) {
   tsdf_layer_.removeBlock(block_index);
   mesh_layer_.removeBlock(block_index);
@@ -168,23 +118,9 @@ void VolumetricMap::removeBlock(const BlockIndex& block_index) {
   }
 }
 
-void VolumetricMap::removePointCloudBlock(const BlockIndex& block_index) {
-  if (base_semantic_pointcloud_) {
-    base_semantic_pointcloud_->removeBlock(block_index);
-  }
-}
-
 void VolumetricMap::removeBlocks(const BlockIndices& blocks) {
   for (const auto& idx : blocks) {
     removeBlock(idx);
-  }
-}
-
-void VolumetricMap::removePointCloudBlocks(const BlockIndices& blocks) {
-  if (base_semantic_pointcloud_) {
-    for (const auto& idx : blocks) {
-      base_semantic_pointcloud_->removeBlock(idx);
-    }
   }
 }
 
@@ -214,13 +150,6 @@ VoxelTuple BlockTuple::getVoxels(const size_t linear_index) const {
   return tuple;
 }
 
-BaseSemanticBlock::Ptr VolumetricMap::getPointCloudBlock(const BlockIndex& index) {
-  if (base_semantic_pointcloud_) {
-    return base_semantic_pointcloud_->getBlockPtr(index);
-  }
-  return nullptr;
-}
-
 void VolumetricMap::save(const std::string& filepath) const {
   // TODO(nathan) consider hdf5 or something...
   // TODO(lschmid): Can use binary serialization tools to write a proper (single) file
@@ -245,26 +174,25 @@ std::unique_ptr<VolumetricMap> VolumetricMap::load(const std::string& filepath) 
   }
 
   const auto cpath = filepath + ".yaml";
-  const auto config = config::fromYamlFile<VolumetricMap::Config>(cpath, "map");
+  auto config = config::fromYamlFile<VolumetricMap::Config>(cpath, "map");
   if (std::abs(config.voxel_size - tsdf->voxel_size) > 1.0e-5) {
     LOG(ERROR) << "TSDF voxel size does not match config voxel size";
     return nullptr;
   }
 
-  if (static_cast<size_t>(config.voxels_per_side) != tsdf->voxels_per_side) {
+  if (config.voxels_per_side != tsdf->voxels_per_side) {
     LOG(ERROR) << "TSDF vps does not match config vps";
     return nullptr;
   }
 
   const auto node = YAML::LoadFile(cpath);
-  bool use_semantics = false;
   if (node["has_semantics"] && node["has_semantics"].as<bool>()) {
-    use_semantics = true;
+    config.with_semantics = true;
   }
 
-  auto map = std::make_unique<VolumetricMap>(config, use_semantics);
+  auto map = std::make_unique<VolumetricMap>(config);
   map->tsdf_layer_ = *tsdf;
-  if (use_semantics) {
+  if (config.with_semantics) {
     map->semantic_layer_ = io::loadLayer<SemanticLayer>(filepath + "_semantics");
   }
 
@@ -305,13 +233,38 @@ std::unique_ptr<VolumetricMap> VolumetricMap::fromTsdf(const TsdfLayer& tsdf,
   config.voxel_size = tsdf.voxel_size;
   config.voxels_per_side = tsdf.voxels_per_side;
   config.truncation_distance = truncation_distance_m;
-  auto to_return = std::make_unique<VolumetricMap>(config, with_semantics);
+  config.with_semantics = with_semantics;
+  auto to_return = std::make_unique<VolumetricMap>(config);
   to_return->tsdf_layer_ = tsdf;
   return to_return;
 }
 
 std::unique_ptr<VolumetricMap> VolumetricMap::clone() const {
   return std::make_unique<VolumetricMap>(*this);
+}
+
+std::unique_ptr<VolumetricMap> VolumetricMap::cloneUpdated() const {
+  auto map = std::make_unique<VolumetricMap>(config);
+  const auto blocks = tsdf_layer_.blockIndicesWithCondition(
+      [](const auto& block) { return block.updated; });
+  for (const auto& idx : blocks) {
+    map->tsdf_layer_.allocateBlock(idx) = tsdf_layer_.getBlock(idx);
+    if (mesh_layer_.hasBlock(idx)) {
+      map->mesh_layer_.allocateBlock(idx) = mesh_layer_.getBlock(idx);
+    }
+
+    if (semantic_layer_) {
+      // other semantic layer is always allocated if this semantic layer exists
+      map->semantic_layer_->allocateBlock(idx) = semantic_layer_->getBlock(idx);
+    }
+
+    if (tracking_layer_) {
+      // other tracking layer is always allocated if this tracking layer exists
+      map->tracking_layer_->allocateBlock(idx) = tracking_layer_->getBlock(idx);
+    }
+  }
+
+  return map;
 }
 
 void VolumetricMap::updateFrom(const VolumetricMap& other) {

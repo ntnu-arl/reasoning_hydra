@@ -37,15 +37,11 @@
 #include <glog/logging.h>
 #include <glog/stl_logging.h>
 
-#include <fstream>
-#include <iostream>
-#include <limits>
-#include <string>
-#include <unordered_map>
-
 #include "hydra/utils/csv_reader.h"
 
 namespace hydra {
+
+using spark_dsg::Color;
 
 SemanticColorMap::SemanticColorMap() : SemanticColorMap(ColorToLabelMap()) {}
 

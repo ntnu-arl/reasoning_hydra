@@ -1,6 +1,3 @@
-// Portions of the following code and their modifications are originally from
-// https://github.com/MIT-SPARK/Hydra/tree/main and are licensed under the following
-// license:
 /* -----------------------------------------------------------------------------
  * Copyright 2022 Massachusetts Institute of Technology.
  * All Rights Reserved
@@ -35,112 +32,26 @@
  * Government is authorized to reproduce and distribute reprints for Government
  * purposes notwithstanding any copyright notation herein.
  * -------------------------------------------------------------------------- */
-
-// Copyright (c) 2025, Autonomous Robots Lab, Norwegian University of Science and
-// Technology All rights reserved.
-
-// This source code is licensed under the BSD-style license found in the
-// LICENSE file in the root directory of this source tree.
 #pragma once
-#include <kimera_pgmo/mesh_delta.h>
-#include <kimera_pgmo/utils/common_structs.h>
-#include <pose_graph_tools/bow_query.h>
-
-#include <list>
-#include <map>
 #include <memory>
-#include <mutex>
-#include <optional>
-#include <string>
-#include <utility>
-#include <vector>
 
-#include "hydra/common/common.h"
-#include "hydra/common/dsg_types.h"
-#include "hydra/common/input_queue.h"
-#include "hydra/common/robot_prefix_config.h"
 #include "hydra/common/shared_dsg_info.h"
-#include "hydra/loop_closure/registration_solution.h"
-#include "hydra/odometry/pose_graph_tracker.h"
-#include "hydra/reconstruction/volumetric_map.h"
 
 namespace hydra {
 
-using EdgeIds = std::vector<std::pair<NodeId, NodeId>>;
-using Labels = std::vector<std::string>;
-
-struct LcdInput {
-  using Ptr = std::shared_ptr<LcdInput>;
-
-  uint64_t timestamp_ns;
-  NodeIdSet archived_places;
-  std::vector<NodeId> new_agent_nodes;
-};
-
-struct BackendInput {
-  using Ptr = std::shared_ptr<BackendInput>;
-
-  RobotPrefixConfig prefix;
-  uint64_t timestamp_ns;
-  pose_graph_tools::PoseGraph::ConstPtr deformation_graph;
-  PoseGraphPacket agent_updates;
-  kimera_pgmo::MeshDelta::Ptr mesh_update;
-  std::optional<Eigen::VectorXf> feature_vector;
-
-  void setPointCloud(const BaseSemanticPointCloud::Ptr& pointcloud) {
-    pointcloud_ = pointcloud;
-  }
-  BaseSemanticPointCloud::Ptr getPointCloud() const { return pointcloud_; }
-
- protected:
-  BaseSemanticPointCloud::Ptr pointcloud_;
-};
-
-struct VLMLabels {
-  using ConstPtr = std::shared_ptr<const VLMLabels>;
-  using Ptr = std::shared_ptr<VLMLabels>;
-
-  EdgeIds edge_ids;
-  Labels labels;
-};
-
-struct BackendVLMLabelsInput {
-  using Ptr = std::shared_ptr<BackendVLMLabelsInput>;
-
-  uint64_t timestamp_ns;
-  VLMLabels::ConstPtr vlm_labels;
-};
-
 struct SharedModuleState {
   using Ptr = std::shared_ptr<SharedModuleState>;
-  using BowQueue = InputQueue<pose_graph_tools::BowQuery::ConstPtr>;
-
   SharedModuleState();
 
   ~SharedModuleState();
 
-  NodeIdSet latest_places;
-
-  InputQueue<BackendInput::Ptr> backend_queue;
-  InputQueue<BackendVLMLabelsInput::Ptr>::Ptr vlm_labels_queue;
-  InputQueue<LcdInput::Ptr>::Ptr lcd_queue;
-  BowQueue::Ptr bow_queue;
-  InputQueue<lcd::RegistrationSolution> backend_lcd_queue;
+  // mutexes are considered ordered (for avoiding deadlock):
+  // 1. SharedDsgInfo::mutex (lcd)
+  // 2. SharedDsgInfo::mutex (backend)
+  // 3. SharedDsgInfo::mutex (frontend)
+  // When acquiring two mutexes, always acquire the lowest mutex first
   SharedDsgInfo::Ptr lcd_graph;
   SharedDsgInfo::Ptr backend_graph;
-};
-
-struct BackendModuleStatus {
-  size_t total_loop_closures;
-  size_t new_loop_closures;
-  size_t total_factors;
-  size_t total_values;
-  size_t new_factors;
-  size_t new_graph_factors;
-  size_t trajectory_len;
-  size_t num_merges_undone;
-
-  void reset();
 };
 
 }  // namespace hydra

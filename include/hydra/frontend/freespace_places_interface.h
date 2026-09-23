@@ -34,10 +34,8 @@
  * -------------------------------------------------------------------------- */
 #pragma once
 
-#include "hydra/common/common.h"
+#include "hydra/active_window/active_window_output.h"
 #include "hydra/common/dsg_types.h"
-#include "hydra/reconstruction/reconstruction_output.h"
-#include "hydra/utils/log_utilities.h"
 
 namespace hydra {
 
@@ -49,9 +47,7 @@ class FreespacePlacesInterface {
 
   virtual ~FreespacePlacesInterface() = default;
 
-  virtual void save(const LogSetup& /* logs */) const {}
-
-  virtual void detect(const ReconstructionOutput& msg) = 0;
+  virtual void detect(const ActiveWindowOutput& msg) = 0;
 
   virtual void updateGraph(uint64_t timestamp_ns, DynamicSceneGraph& graph) = 0;
 

@@ -35,40 +35,20 @@
 #pragma once
 
 #include <gtsam/inference/Symbol.h>
-#include <pcl/PolygonMesh.h>
-#include <spark_dsg/scene_graph_types.h>
+#include <gtsam/nonlinear/Values.h>
 
-#include <algorithm>
-#include <memory>
-#include <utility>
-#include <vector>
-
+#include "hydra/common/dsg_types.h"
 #include "hydra/common/shared_dsg_info.h"
-
-namespace hydra {
-struct ObjectsAttributes {
-  using Ptr = std::shared_ptr<ObjectsAttributes>;
-  std::vector<pcl::PolygonMesh::Ptr> meshes;
-  std::vector<uint32_t> labels;
-  std::vector<NodeId> ids;
-  std::vector<std::pair<size_t, size_t>> edge_indices;
-  std::vector<Eigen::VectorXf> features;
-
-  void clear() {
-    meshes.clear();
-    labels.clear();
-    ids.clear();
-    edge_indices.clear();
-    features.clear();
-  }
-};
-}  // namespace hydra
 
 namespace kimera_pgmo {
 class MeshDelta;
-}
+class SparseKeyframe;
+}  // namespace kimera_pgmo
 
 namespace hydra::utils {
+
+using KeyMap = std::unordered_map<gtsam::Key, gtsam::Key>;
+using FrameMap = std::unordered_map<gtsam::Key, kimera_pgmo::SparseKeyframe>;
 
 std::optional<uint64_t> getTimeNs(const DynamicSceneGraph& graph, gtsam::Symbol key);
 
@@ -97,5 +77,9 @@ void mergeIndices(const T& from, T& to) {
                  to_indices.end(),
                  std::back_inserter(to));
 }
+
+gtsam::Values getDenseFrames(const KeyMap& full_sparse_frame_map,
+                             const FrameMap& sparse_frames,
+                             const gtsam::Values& sparse_values);
 
 }  // namespace hydra::utils

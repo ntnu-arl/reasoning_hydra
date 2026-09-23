@@ -1,6 +1,3 @@
-// Portions of the following code and their modifications are originally from
-// https://github.com/MIT-SPARK/Hydra/tree/main and are licensed under the following
-// license:
 /* -----------------------------------------------------------------------------
  * Copyright 2022 Massachusetts Institute of Technology.
  * All Rights Reserved
@@ -35,19 +32,12 @@
  * Government is authorized to reproduce and distribute reprints for Government
  * purposes notwithstanding any copyright notation herein.
  * -------------------------------------------------------------------------- */
-
-// Copyright (c) 2025, Autonomous Robots Lab, Norwegian University of Science and
-// Technology All rights reserved.
-
-// This source code is licensed under the BSD-style license found in the
-// LICENSE file in the root directory of this source tree.
 #pragma once
-#include <config_utilities/factory.h>
 
 #include <cstdint>
-#include <optional>
 #include <set>
 
+#include "hydra/openset/openset_types.h"
 #include "hydra/reconstruction/voxel_types.h"
 
 namespace hydra {
@@ -56,64 +46,136 @@ struct SemanticIntegrator {
   virtual ~SemanticIntegrator() = default;
 
   /**
-   * @brief Check whether the point should be integrated based on the label
-   * Note: this discards points that should not be contained in the map, e.g., dynamic
-   * points or labels like 'sky'
+   * @brief Update voxel likelihoods given an observation of a label
+   * @param label Observed input label
+   * @param weight Reconstruction weight assigned to the measurement for the voxel
+   * @param voxel Semantic voxel to update
    */
-  virtual bool canIntegrate(uint32_t label) const = 0;
+  virtual void updateLikelihoods(uint32_t label,
+                                 float weight,
+                                 SemanticVoxel& voxel) const = 0;
 
-  /**
-   * @brief Check whether this is a supported label for updating the voxel semantics
-   * Note: this is different than canIntegrate and checks if this is a semantic label
-   * that we are capable of tracking independent of the point itself being integrated
-   * into the tsdf
+  /**   * @brief Update voxel likelihoods given an observation of a label, panoptic ID,
+   * and feature
+   * @param label Observed input label
+   * @param panoptic_id Observed panoptic ID
+   * @param semantic_feature Observed semantic feature
+   * @param weight Reconstruction weight assigned to the measurement for the voxel
+   * @param voxel Semantic voxel to update
    */
-  virtual bool isValidLabel(uint32_t label) const = 0;
-
-  virtual void updateLikelihoods(
-      uint32_t label,
-      const std::optional<Eigen::VectorXf>& semantic_feature_vector,
-      const std::optional<uint16_t>& panoptic_id,
-      SemanticVoxel& voxel) const = 0;
-  virtual void updateLikelihoods(uint32_t label, BaseSemanticVoxel& voxel) const = 0;
+  virtual void updateLikelihoods(uint32_t label,
+                                 std::optional<int16_t> panoptic_id,
+                                 std::optional<FeatureVector> semantic_feature,
+                                 float weight,
+                                 SemanticVoxel& voxel) const = 0;
 };
 
-// Implementation based in part on Kimera-Semantics
+/*
+ * @brief Full maximum-likelihood integrator
+ *
+ * Based roughly on Kimera-Semantics and https://arxiv.org/pdf/1609.05130
+ */
 class MLESemanticIntegrator : public SemanticIntegrator {
  public:
   struct Config {
-    /// Measurement probability
+    //! @brief Measurement probability
     double label_confidence = 0.9;
   } const config;
 
   explicit MLESemanticIntegrator(const Config& config);
 
-  bool canIntegrate(uint32_t label) const override;
-
-  bool isValidLabel(uint32_t label) const override;
-
   void updateLikelihoods(uint32_t label,
-                         const std::optional<Eigen::VectorXf>& semantic_feature_vector,
-                         const std::optional<uint16_t>& panoptic_id,
+                         float weight,
                          SemanticVoxel& voxel) const override;
 
-  void updateLikelihoods(uint32_t label, BaseSemanticVoxel& voxel) const override;
+  void updateLikelihoods(uint32_t label,
+                         std::optional<int16_t> panoptic_id,
+                         std::optional<FeatureVector> semantic_feature,
+                         float weight,
+                         SemanticVoxel& voxel) const override;
 
  protected:
   size_t total_labels_;
-  std::set<uint32_t> dynamic_labels_;
-  std::set<uint32_t> invalid_labels_;
 
   float init_likelihood_;
   Eigen::MatrixXf observation_likelihoods_;
-
-  inline static const auto registration_ =
-      config::RegistrationWithConfig<SemanticIntegrator,
-                                     MLESemanticIntegrator,
-                                     MLESemanticIntegrator::Config>(
-          "MLESemanticIntegrator");
 };
 
 void declare_config(MLESemanticIntegrator::Config& config);
+
+class BinarySemanticIntegrator : public hydra::SemanticIntegrator {
+ public:
+  struct Config {};
+
+  explicit BinarySemanticIntegrator(const Config& /* config */){};
+
+  void updateLikelihoods(uint32_t label,
+                         float weight,
+                         SemanticVoxel& voxel) const override;
+
+  void updateLikelihoods(uint32_t label,
+                         std::optional<int16_t> panoptic_id,
+                         std::optional<FeatureVector> semantic_feature,
+                         float weight,
+                         SemanticVoxel& voxel) const override;
+};
+
+void declare_config(BinarySemanticIntegrator::Config& config);
+
+/**
+ * @brief Integrator that tracks up to K labels
+ *
+ * Rough implementation of a truncated likelihood integrator.
+ */
+class FirstKSemanticIntegrator : public SemanticIntegrator {
+ public:
+  struct Config {
+    //! Maximum number of classes to track
+    size_t k = 5;
+    //! Minimum weight for a class to be valid
+    float min_weight = 0.0f;
+    //! Maximum weight for any class
+    float max_weight = 0.0f;
+  } const config;
+
+  explicit FirstKSemanticIntegrator(const Config& config);
+
+  void updateLikelihoods(uint32_t label,
+                         float weight,
+                         SemanticVoxel& voxel) const override;
+
+  void updateLikelihoods(uint32_t label,
+                         std::optional<int16_t> panoptic_id,
+                         std::optional<FeatureVector> semantic_feature,
+                         float weight,
+                         SemanticVoxel& voxel) const override;
+};
+
+void declare_config(FirstKSemanticIntegrator::Config& config);
+
+/**
+ * @brief Integrator that tracks the single most-likely estimate
+ *
+ * based on: https://ieeexplore.ieee.org/abstract/document/8967890
+ */
+class SingleLabelIntegrator : public SemanticIntegrator {
+ public:
+  struct Config {
+  } const config;
+
+  explicit SingleLabelIntegrator(const Config& config = {});
+
+  void updateLikelihoods(uint32_t label,
+                         float weight,
+                         SemanticVoxel& voxel) const override;
+
+  void updateLikelihoods(uint32_t label,
+                         std::optional<int16_t> panoptic_id,
+                         std::optional<FeatureVector> semantic_feature,
+                         float weight,
+                         SemanticVoxel& voxel) const override;
+};
+
+void declare_config(SingleLabelIntegrator::Config& config);
 
 }  // namespace hydra

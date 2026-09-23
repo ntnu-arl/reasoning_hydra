@@ -60,14 +60,6 @@ Eigen::Vector3f pgmoGetVertex(const Mesh& mesh,
     traits->label = mesh.label(i);
   }
 
-  if (mesh.has_semantic_features && mesh.semantic_features.size() > 0) {
-    traits->semantic_feature = mesh.semanticFeature(i);
-  }
-
-  if (mesh.has_panoptic_ids && mesh.panoptic_ids.size() > 0) {
-    traits->panoptic_id = mesh.panopticID(i);
-  }
-
   return mesh.pos(i);
 }
 
@@ -87,14 +79,6 @@ void pgmoSetVertex(Mesh& mesh,
 
   if (traits.label && mesh.has_labels) {
     mesh.setLabel(i, *traits.label);
-  }
-
-  if (traits.semantic_feature && mesh.has_semantic_features) {
-    mesh.setSemanticFeature(i, *traits.semantic_feature);
-  }
-
-  if (traits.panoptic_id && mesh.has_panoptic_ids) {
-    mesh.setPanopticID(i, *traits.panoptic_id);
   }
 }
 

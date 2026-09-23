@@ -38,28 +38,37 @@
 #include <config_utilities/printing.h>
 #include <config_utilities/validation.h>
 
-#include "hydra/common/common.h"
 #include "hydra/common/global_info.h"
 
 namespace hydra {
 
+void declare_config(InputModule::Config::InputPair& config) {
+  using namespace config;
+  name("InputModule::InputPair::Config");
+  field(config.receiver, "receiver");
+  field(config.sensor, "sensor");
+}
+
 void declare_config(InputModule::Config& config) {
   using namespace config;
   name("InputModule::Config");
-  field(config.receivers, "receivers");
-  checkCondition(!config.receivers.empty(), "At least one receiver must be specified");
+  field(config.inputs, "inputs");
+  field(config.max_receiver_queue_size, "max_receiver_queue_size");
+  checkCondition(!config.inputs.empty(), "At least one input must be specified");
 }
 
 InputModule::InputModule(const Config& config, const OutputQueue::Ptr& queue)
     : config(config::checkValid(config)), queue_(queue) {
   // Setup the receivers and instatiate their sensors globally.
-  std::vector<config::VirtualConfig<Sensor>> sensor_configs;
-  for (size_t i = 0; i < config.receivers.size(); ++i) {
-    receivers_.emplace_back(config.receivers[i].create(i));
-    sensor_configs.push_back(receivers_.back()->config.sensor);
+  auto& info = GlobalInfo::instance();
+  for (const auto& [name, input_pair] : config.inputs) {
+    receivers_.emplace_back(input_pair.receiver.create(name));
+    CHECK(info.setSensor(input_pair.sensor.create(name), false));
   }
 
-  GlobalInfo::instance().setSensors(sensor_configs);
+  for (auto& receiver : receivers_) {
+    receiver->queue.max_size = config.max_receiver_queue_size;
+  }
 }
 
 InputModule::~InputModule() { stopImpl(); }
@@ -89,13 +98,7 @@ void InputModule::stopImpl() {
   }
 }
 
-void InputModule::save(const LogSetup&) {}
-
-std::string InputModule::printInfo() const {
-  std::stringstream ss;
-  ss << config::toString(config);
-  return ss.str();
-}
+std::string InputModule::printInfo() const { return config::toString(config); }
 
 void InputModule::dataSpin() {
   while (!should_shutdown_) {
@@ -109,18 +112,20 @@ void InputModule::dataSpin() {
       const auto curr_time = packet->timestamp_ns;
       VLOG(2) << "[Hydra Input] popped input @ " << curr_time << " [ns]";
 
-      const auto odom_T_body = getBodyPose(packet->timestamp_ns);
+      const auto odom_T_body = getBodyPose(curr_time);
       if (!odom_T_body) {
-        LOG(WARNING) << "[Hydra Input] dropping input @ " << curr_time
-                     << " [ns] due to missing pose";
+        VLOG(1) << "[Hydra Input] dropping input @ " << curr_time
+                << " [ns] due to missing pose";
         continue;
       }
 
       InputPacket::Ptr input(new InputPacket());
-      input->timestamp_ns = packet->timestamp_ns;
+      input->timestamp_ns = curr_time;
       input->sensor_input = packet;
       input->world_t_body = odom_T_body.target_p_source;
       input->world_R_body = odom_T_body.target_R_source;
+      VLOG(5) << "[Hydra Input] output queue state: size=" << queue_->size()
+              << " (max=" << queue_->max_size << ") @ " << curr_time << " [ns]";
       queue_->push(input);
     }
   }

@@ -37,6 +37,10 @@
 #include <config_utilities/config.h>
 #include <config_utilities/printing.h>
 #include <config_utilities/validation.h>
+#include <spark_dsg/labelspace.h>
+
+#include <filesystem>
+#include <fstream>
 
 #include "hydra/common/config_utilities.h"
 #include "hydra/common/semantic_color_map.h"
@@ -93,90 +97,45 @@ void declare_config(FrameConfig& frames) {
   field(frames.map, "map_frame");
 }
 
-void declare_config(PipelineConfig& conf) {
+void declare_config(PipelineConfig& config) {
   using namespace config;
   name("PipelineConfig");
-  field(conf.enable_reconstruction, "enable_reconstruction");
-  field(conf.enable_lcd, "enable_lcd");
-  field(conf.enable_places, "enable_places");
-  field(conf.timing_disabled, "timing_disabled");
-  field(conf.disable_timer_output, "disable_timer_output");
-  field(conf.enable_pgmo_logging, "enable_pgmo_logging");
-  field(conf.default_verbosity, "default_verbosity");
-  field(conf.default_num_threads, "default_num_threads");
-  field(conf.store_visualization_details, "store_visualization_details");
-  field(conf.map, "reconstruction/map");
-  field<LabelNameConversion>(conf.label_names, "label_names");
-  field(conf.room_colors, "room_colors");
-
+  field(config.enable_lcd, "enable_lcd");
+  field(config.timing_disabled, "timing_disabled");
+  field(config.disable_timer_output, "disable_timer_output");
+  field(config.enable_pgmo_logging, "enable_pgmo_logging");
+  field(config.default_verbosity, "default_verbosity");
+  field(config.default_num_threads, "default_num_threads");
+  field(config.store_visualization_details, "store_visualization_details");
+  config.map_window.setOptional();
+  field(config.map_window, "map_window");
+  field<LabelNameConversion>(config.label_names, "label_names");
   // the following subconfigs should not be namespaced
-  field(conf.logs, "logs", false);
-  field(conf.frames, "frames", false);
-  field(conf.label_space, "label_space", false);
+  field(config.frames, "frames", false);
+  field(config.graph, "graph", false);
+  field(config.label_space, "label_space", false);
 }
 
-void saveTimingInformation(const LogSetup& log_config) {
-  if (!log_config.valid()) {
-    return;
-  }
-
-  LOG(INFO) << "[Hydra] saving timing information to " << log_config.getLogDir();
-  const ElapsedTimeRecorder& timer = ElapsedTimeRecorder::instance();
-  timer.logAllElapsed(log_config);
-  timer.logStats(log_config.getTimerFilepath());
-  LOG(INFO) << "[Hydra] saved timing information";
-}
-
-GlobalInfo::GlobalInfo() : force_shutdown_(false) {
-  label_colormap_.reset(new SemanticColorMap());
-}
+GlobalInfo::GlobalInfo() : force_shutdown_(false) {}
 
 void GlobalInfo::configureTimers() {
   ElapsedTimeRecorder& timer = ElapsedTimeRecorder::instance();
   timer.timing_disabled = config_.timing_disabled;
   timer.disable_output = config_.disable_timer_output;
-  if (timer.timing_disabled) {
-    return;
-  }
-
-  if (!logs_ || !logs_->valid()) {
-    return;
-  }
-
-  if (logs_->config().log_timing_incrementally) {
-    timer.setupIncrementalLogging(logs_);
-  }
-}
-
-void GlobalInfo::checkFrozen() const {
-  if (!frozen_) {
-    LOG(ERROR) << "GlobalInfo is not frozen! Call init with freeze set to 'true' "
-                  "before using config";
-    throw std::runtime_error("config not frozen");
-  }
 }
 
 void GlobalInfo::initFromConfig(const PipelineConfig& config, int robot_id) {
   config_ = config::checkValid(config);
   robot_prefix_ = RobotPrefixConfig(robot_id);
-  logs_ = std::make_shared<LogSetup>(config_.logs);
+
   configureTimers();
-
-  if (!config_.label_space.colormap.empty()) {
-    SemanticColorMap::ColorToLabelMap new_colors;
-    for (auto&& [id, color] : config_.label_space.colormap) {
-      new_colors[Color(color[0], color[1], color[2])] = id;
-    }
-
-    label_colormap_.reset(new SemanticColorMap(new_colors));
-  } else if (!config_.label_space.colormap_filepath.empty()) {
-    label_colormap_ = SemanticColorMap::fromCsv(config_.label_space.colormap_filepath);
-  } else {
-    label_colormap_ = SemanticColorMap::randomColors(config_.label_space.total_labels);
-  }
 
   if (!config_.label_space.label_remap_filepath.empty()) {
     label_remapper_ = LabelRemapper(config_.label_space.label_remap_filepath);
+  }
+
+  if (!config_.label_space.colormap_filepath.empty()) {
+    label_colormap_ = SemanticColorMap::fromCsv(config_.label_space.colormap_filepath);
   }
 
   if (label_colormap_) {
@@ -192,43 +151,20 @@ GlobalInfo& GlobalInfo::instance() {
   if (!instance_) {
     instance_.reset(new GlobalInfo());
   }
+
   return *instance_;
 }
 
-GlobalInfo& GlobalInfo::init(const PipelineConfig& config, int robot_id, bool freeze) {
+GlobalInfo& GlobalInfo::init(const PipelineConfig& config, int robot_id) {
   auto& curr = instance();
-  if (curr.frozen_) {
-    LOG(ERROR) << "Failed to initialize GlobalInfo as config was already frozen";
-    throw std::runtime_error("hydra global config is frozen");
-  }
-
   curr.initFromConfig(config, robot_id);
-  // TODO(nathan) print?
-  curr.frozen_ = freeze;
   return curr;
 }
 
 void GlobalInfo::reset() { instance_.reset(new GlobalInfo()); }
 
-void GlobalInfo::exit() {
-  auto& curr = instance();
-
-  // save timing information to avoid destructor weirdness with singletons
-  if (curr.logs_) {
-    saveTimingInformation(*curr.logs_);
-    curr.logs_.reset();
-  }
-
-  // TODO(nathan) see if anything else needs to be saved;
-}
-
 void GlobalInfo::setForceShutdown(bool force_shutdown) {
   force_shutdown_ = force_shutdown;
-}
-
-ColorMapPtr GlobalInfo::setRandomColormap() {
-  label_colormap_ = SemanticColorMap::randomColors(config_.label_space.total_labels);
-  return label_colormap_;
 }
 
 bool GlobalInfo::force_shutdown() const { return force_shutdown_; }
@@ -239,16 +175,53 @@ const FrameConfig& GlobalInfo::getFrames() const { return config_.frames; }
 
 const RobotPrefixConfig& GlobalInfo::getRobotPrefix() const { return robot_prefix_; }
 
-const LogSetup::Ptr& GlobalInfo::getLogs() const { return logs_; }
-
-const VolumetricMap::Config& GlobalInfo::getMapConfig() const { return config_.map; }
-
-const Color& GlobalInfo::getRoomColor(size_t index) const {
-  return config_.room_colors.at(index % config_.room_colors.size());
-}
-
 const std::map<uint32_t, std::string>& GlobalInfo::getLabelToNameMap() const {
   return config_.label_names;
+}
+
+bool GlobalInfo::getFirstFreeLabelId(uint32_t& label_id) const {
+  for (uint32_t id = 0; id < static_cast<uint32_t>(config_.label_space.total_labels);
+       ++id) {
+    if (config_.label_names.count(id) == 0) {
+      continue;
+    }
+    if (config_.label_names.at(id) == "free") {
+      label_id = id;
+      return true;
+    }
+  }
+  return false;
+}
+
+bool GlobalInfo::addNewLabels(const std::vector<std::string>& new_labels) {
+  uint32_t next_label_id;
+  if (!getFirstFreeLabelId(next_label_id)) {
+    return false;
+  }
+  if (next_label_id + new_labels.size() >
+      static_cast<uint32_t>(config_.label_space.total_labels)) {
+    return false;
+  }
+  for (const auto& label_name : new_labels) {
+    if (std::any_of(config_.label_names.begin(),
+                    config_.label_names.end(),
+                    [&](const auto& pair) { return pair.second == label_name; })) {
+      continue;
+    }
+    config_.label_names[next_label_id] = label_name;
+    ++next_label_id;
+  }
+  return true;
+}
+
+size_t GlobalInfo::getNumActiveLabels() const {
+  size_t count = 0;
+  for (const auto& kv : config_.label_names) {
+    if (kv.second != "free" && kv.second != "unknown") {
+      ++count;
+    }
+  }
+  return count;
 }
 
 const LabelSpaceConfig& GlobalInfo::getLabelSpaceConfig() const {
@@ -259,31 +232,86 @@ size_t GlobalInfo::getTotalLabels() const { return config_.label_space.total_lab
 
 const LabelRemapper& GlobalInfo::getLabelRemapper() const { return label_remapper_; }
 
+const SemanticColorMap* GlobalInfo::getSemanticColorMap() const {
+  return label_colormap_.get();
+}
+
 SharedDsgInfo::Ptr GlobalInfo::createSharedDsg() const {
-  return std::make_shared<SharedDsgInfo>(config_.layer_id_map);
-}
+  auto graph_info = std::make_shared<SharedDsgInfo>(config_.graph);
+  auto& graph = *graph_info->graph;
 
-ColorMapPtr GlobalInfo::getSemanticColorMap() const { return label_colormap_; }
-
-void GlobalInfo::setSensors(std::vector<config::VirtualConfig<Sensor>> sensor_configs) {
-  sensor_configs_ = std::move(sensor_configs);
-  for (const auto& sensor_config : sensor_configs_) {
-    sensors_.emplace_back(sensor_config.create());
+  const spark_dsg::Labelspace labelspace(getLabelToNameMap());
+  if (labelspace) {
+    labelspace.save(graph, "mesh");
+    for (const auto& layer_name : config_.label_space.semantic_layers) {
+      const auto key = graph.getLayerKey(layer_name);
+      if (key) {
+        labelspace.save(graph, key->layer, key->partition);
+      }
+    }
   }
+
+  return graph_info;
 }
 
-std::shared_ptr<const Sensor> GlobalInfo::getSensor(const size_t index) const {
-  if (index >= sensors_.size()) {
-    LOG(ERROR) << "Sensor index out of bounds: " << index;
+bool GlobalInfo::setSensor(const Sensor::Ptr& sensor, bool allow_override) {
+  if (!sensor) {
+    LOG(ERROR) << "Sensor is invalid!";
+    return false;
+  }
+
+  auto iter = sensors_.find(sensor->name);
+  if (iter == sensors_.end()) {
+    sensors_[sensor->name] = sensor;
+    return true;
+  }
+
+  if (!allow_override) {
+    LOG(ERROR) << "Sensor '" << sensor->name << "' already exists!";
+    return false;
+  }
+
+  VLOG(1) << "Overriding sensor '" << sensor->name << "'!";
+  iter->second = sensor;
+  return true;
+}
+
+Sensor::ConstPtr GlobalInfo::getSensor(const std::string& name) const {
+  auto iter = sensors_.find(name);
+  if (iter == sensors_.end()) {
+    LOG(ERROR) << "Sensor '" << name << "' does not exist!";
     return nullptr;
   }
-  return sensors_[index];
+
+  return iter->second;
 }
 
-size_t GlobalInfo::numSensors() const { return sensors_.size(); }
+std::vector<std::string> GlobalInfo::getAvailableSensors() const {
+  std::vector<std::string> names;
+  names.reserve(sensors_.size());
+  for (const auto& [name, sensor] : sensors_) {
+    names.push_back(name);
+  }
+
+  return names;
+}
+
+std::unique_ptr<VolumetricWindow> GlobalInfo::createVolumetricWindow() const {
+  return config_.map_window.create();
+}
 
 std::ostream& operator<<(std::ostream& out, const GlobalInfo& config) {
   out << config::toString(config.getConfig());
+  const auto sensor_names = config.getAvailableSensors();
+  for (const auto& name : sensor_names) {
+    auto sensor = config.getSensor(name);
+    if (!sensor) {
+      continue;
+    }
+
+    out << "sensor '" << name << "'" << sensor->dump();
+  }
+
   return out;
 }
 

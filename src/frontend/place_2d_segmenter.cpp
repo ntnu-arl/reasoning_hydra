@@ -151,7 +151,13 @@ pcl::IndicesPtr getActivePlaceIndices(
   for (auto kv : active_places) {
     std::set<NodeId> nodes = kv.second;
     for (auto nid : nodes) {
-      auto& attrs = graph.getNode(nid).attributes<Place2dNodeAttributes>();
+      const auto node = graph.findNode(nid);
+      if (!node) {
+        LOG(ERROR) << "Found removed node: " << NodeSymbol(nid);
+        continue;
+      }
+
+      auto& attrs = node->attributes<Place2dNodeAttributes>();
       size_t min_index = std::numeric_limits<size_t>::max();
       size_t max_index = 0;
       auto iter = attrs.pcl_mesh_connections.begin();
@@ -228,7 +234,7 @@ NodeIdSet Place2dSegmenter::getActiveNodes() const {
   return all_active_nodes;
 }
 
-void Place2dSegmenter::detect(const ReconstructionOutput&,
+void Place2dSegmenter::detect(const ActiveWindowOutput&,
                               const kimera_pgmo::MeshDelta& mesh_delta,
                               const DynamicSceneGraph& graph) {
   VLOG(5) << "[Places 2d Segmenter] detect called";
@@ -326,7 +332,7 @@ bool Place2dSegmenter::frontendAddPlaceConnection(const Place2dNodeAttributes& a
 }
 
 void Place2dSegmenter::updateGraph(uint64_t timestamp_ns,
-                                   const ReconstructionOutput& msg,
+                                   const ActiveWindowOutput& /*msg*/,
                                    DynamicSceneGraph& graph) {
   // Remove old empty nodes
   for (const auto& nid : nodes_to_remove_) {
@@ -334,34 +340,30 @@ void Place2dSegmenter::updateGraph(uint64_t timestamp_ns,
   }
   nodes_to_remove_.clear();
 
-  std::optional<Eigen::Vector3d> pos = msg.world_t_body;
   VLOG(5) << "[Places 2d Segmenter] updateGraph";
   std::map<uint32_t, std::set<NodeId>> active_places_to_check;
   for (const auto& label : config.labels) {
     active_places_to_check[label] = std::set<NodeId>();
   }
+
   std::map<uint32_t, std::set<NodeId>> new_active_places;
   for (const auto& label : config.labels) {
     new_active_places[label] = std::set<NodeId>();
   }
 
-  if (!pos) {
-    new_active_places = active_places_;
-  } else {
-    for (auto kv : active_places_) {
-      std::set<NodeId> nodes = kv.second;
-      for (NodeId nid : nodes) {
-        auto& attrs = graph.getNode(nid).attributes<Place2dNodeAttributes>();
-        if (attrs.pcl_mesh_connections.size() == 0 || attrs.boundary.size() < 3) {
-          // Remove dangling places
-          graph.removeNode(nid);
-          continue;
-        }
-        if (attrs.pcl_min_index >= num_archived_vertices_) {
-          graph.removeNode(nid);
-        } else {
-          active_places_to_check.at(kv.first).insert(nid);
-        }
+  for (auto kv : active_places_) {
+    std::set<NodeId> nodes = kv.second;
+    for (NodeId nid : nodes) {
+      auto& attrs = graph.getNode(nid).attributes<Place2dNodeAttributes>();
+      if (attrs.pcl_mesh_connections.size() == 0 || attrs.boundary.size() < 3) {
+        // Remove dangling places
+        graph.removeNode(nid);
+        continue;
+      }
+      if (attrs.pcl_min_index >= num_archived_vertices_) {
+        graph.removeNode(nid);
+      } else {
+        active_places_to_check.at(kv.first).insert(nid);
       }
     }
   }
@@ -380,6 +382,7 @@ void Place2dSegmenter::updateGraph(uint64_t timestamp_ns,
       full_nodes.insert(std::pair<uint32_t, NodeId>(kv.first, nid));
     }
   }
+
   for (auto kv : semiactive_places_) {
     std::set<NodeId> nodes = kv.second;
     for (NodeId nid : nodes) {
@@ -391,6 +394,7 @@ void Place2dSegmenter::updateGraph(uint64_t timestamp_ns,
   for (const auto& label : config.labels) {
     new_semiactive_places[label] = std::set<NodeId>();
   }
+
   for (auto label_ns : full_nodes) {
     uint32_t label = label_ns.first;
     NodeSymbol ns1 = label_ns.second;
@@ -445,7 +449,6 @@ NodeSymbol Place2dSegmenter::addPlaceToGraph(DynamicSceneGraph& graph,
   attrs->is_active = true;
 
   attrs->semantic_label = label;
-  attrs->name = NodeSymbol(next_node_id_).getLabel();
   attrs->boundary = place.boundary;
   attrs->pcl_boundary_connections.insert(attrs->pcl_boundary_connections.begin(),
                                          place.boundary_indices.begin(),
@@ -458,21 +461,12 @@ NodeSymbol Place2dSegmenter::addPlaceToGraph(DynamicSceneGraph& graph,
   attrs->pcl_min_index = place.min_mesh_index;
   attrs->pcl_max_index = place.max_mesh_index;
   attrs->has_active_mesh_indices = true;
+  attrs->need_finish_merge = false;
 
   attrs->pcl_mesh_connections.insert(
       attrs->pcl_mesh_connections.begin(), place.indices.begin(), place.indices.end());
 
-  attrs->need_finish_merge = false;
-
-  auto label_map = GlobalInfo::instance().getSemanticColorMap();
-  if (!label_map || !label_map->isValid()) {
-    label_map = GlobalInfo::instance().setRandomColormap();
-    CHECK(label_map != nullptr);
-  }
-
-  attrs->color = label_map->getColorFromLabel(label);
-
-  graph.emplaceNode(DsgLayers::MESH_PLACES, next_node_id_, std::move(attrs));
+  graph.emplaceNode(config.layer, next_node_id_, std::move(attrs));
 
   active_places_.at(label).insert(next_node_id_);
   active_place_timestamps_[next_node_id_] = timestamp;
@@ -483,6 +477,7 @@ NodeSymbol Place2dSegmenter::addPlaceToGraph(DynamicSceneGraph& graph,
 void declare_config(Place2dSegmenter::Config& config) {
   using namespace config;
   name("Place2dSegmenterConfig");
+  field(config.layer, "layer");
   field<CharConversion>(config.prefix, "prefix");
   field(config.cluster_tolerance, "cluster_tolerance");
   field(config.min_cluster_size, "min_cluster_size");

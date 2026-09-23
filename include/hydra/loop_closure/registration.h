@@ -35,11 +35,11 @@
 #pragma once
 #include <glog/logging.h>
 #include <gtsam/geometry/Pose3.h>
+#include <spark_dsg/printing.h>
 #include <teaser/registration.h>
 
 #include <mutex>
 
-#include "hydra/common/common.h"
 #include "hydra/loop_closure/descriptor_matching.h"
 #include "hydra/loop_closure/registration_solution.h"
 #include "hydra/loop_closure/subgraph_extraction.h"
@@ -77,7 +77,7 @@ struct DsgRegistrationSolver {
 using TeaserParams = teaser::RobustRegistrationSolver::Params;
 
 struct DsgTeaserSolver : DsgRegistrationSolver {
-  DsgTeaserSolver(LayerId layer_id,
+  DsgTeaserSolver(const std::string& layer,
                   const LayerRegistrationConfig& config,
                   const TeaserParams& params);
 
@@ -87,7 +87,7 @@ struct DsgTeaserSolver : DsgRegistrationSolver {
                              const DsgRegistrationInput& match,
                              NodeId query_agent_id) const override;
 
-  LayerId layer_id;
+  const std::string layer_id;
   LayerRegistrationConfig config;
   std::string timer_prefix;
   std::string log_prefix;
@@ -191,8 +191,8 @@ LayerRegistrationSolution registerDsgLayer(
   Eigen::Matrix<double, 3, Eigen::Dynamic> dest_points(3, correspondences.size());
   for (size_t i = 0; i < correspondences.size(); ++i) {
     const auto correspondence = correspondences[i];
-    src_points.col(i) = src.getPosition(correspondence.first);
-    dest_points.col(i) = dest.getPosition(correspondence.second);
+    src_points.col(i) = getNodePosition(src, correspondence.first);
+    dest_points.col(i) = getNodePosition(dest, correspondence.second);
   }
 
   if (correspondences.size() < config.min_correspondences) {

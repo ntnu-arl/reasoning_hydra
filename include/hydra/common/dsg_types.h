@@ -42,4 +42,14 @@ namespace hydra {
 
 using namespace spark_dsg;
 
+inline const Eigen::Vector3d& getNodePosition(const SceneGraphLayer& graph,
+                                              NodeId node) {
+  return graph.getNode(node).attributes().position;
+}
+
+inline const Eigen::Vector3d& getNodePosition(const DynamicSceneGraph& graph,
+                                              NodeId node) {
+  return graph.getNode(node).attributes().position;
+}
+
 }  // namespace hydra

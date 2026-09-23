@@ -39,16 +39,39 @@ namespace hydra::utils {
 void getPlace2dAndNeighors(const SceneGraphLayer& places_layer,
                            std::vector<std::pair<NodeId, Place2d>>& place_2ds,
                            std::map<NodeId, std::set<NodeId>>& node_neighbors) {
-  for (auto& id_node_pair : places_layer.nodes()) {
-    auto& attrs = id_node_pair.second->attributes<Place2dNodeAttributes>();
-    if (attrs.need_finish_merge) {
+  for (auto& [node_id, node] : places_layer.nodes()) {
+    auto attrs = node->tryAttributes<Place2dNodeAttributes>();
+    if (!attrs) {
+      continue;
+    }
+
+    if (attrs->need_finish_merge) {
       Place2d p;
       p.indices.insert(p.indices.end(),
-                       attrs.pcl_mesh_connections.begin(),
-                       attrs.pcl_mesh_connections.end());
-      place_2ds.push_back(std::pair(id_node_pair.first, p));
-      node_neighbors.insert({id_node_pair.first, id_node_pair.second->siblings()});
+                       attrs->pcl_mesh_connections.begin(),
+                       attrs->pcl_mesh_connections.end());
+      place_2ds.push_back(std::pair(node_id, p));
+      node_neighbors.insert({node_id, node->siblings()});
     }
+  }
+}
+
+void computeAttributeUpdates(const spark_dsg::Mesh& mesh,
+                             const double connection_ellipse_scale_factor,
+                             std::vector<std::pair<NodeId, Place2d>>& place_2ds,
+                             std::vector<std::pair<NodeId, Place2d>>& nodes_to_update) {
+  for (auto& id_place_pair : place_2ds) {
+    addRectInfo(mesh.points, connection_ellipse_scale_factor, id_place_pair.second);
+    addBoundaryInfo(mesh.points, id_place_pair.second);
+    size_t min_ix = SIZE_MAX;
+    size_t max_ix = 0;
+    for (auto midx : id_place_pair.second.indices) {
+      min_ix = std::min(min_ix, midx);
+      max_ix = std::max(max_ix, midx);
+    }
+    id_place_pair.second.min_mesh_index = min_ix;
+    id_place_pair.second.max_mesh_index = max_ix;
+    nodes_to_update.push_back(id_place_pair);
   }
 }
 
@@ -171,7 +194,6 @@ NodeSymbol insertNewNodes(
       attrs->is_active = false;
 
       attrs->semantic_label = attrs_og.semantic_label;
-      attrs->name = NodeSymbol(node_id_for_place).getLabel();
       attrs->boundary = place.boundary;
       attrs->pcl_boundary_connections.insert(attrs->pcl_boundary_connections.begin(),
                                              place.boundary_indices.begin(),
@@ -187,7 +209,6 @@ NodeSymbol insertNewNodes(
       attrs->pcl_mesh_connections.insert(attrs->pcl_mesh_connections.begin(),
                                          place.indices.begin(),
                                          place.indices.end());
-      attrs->color = attrs_og.color;
 
       attrs->has_active_mesh_indices = attrs_og.has_active_mesh_indices;
       attrs->need_cleanup_splitting = true;
@@ -306,7 +327,8 @@ void reallocateMeshPoints(const std::vector<Place2d::PointT>& points,
 
   // Say there are active mesh indices if either involved node has them.
   // In theory we could actually check if any of the reallocated vertices changes a
-  // place's activeness for a small speed improvement, but not sure how much it matters
+  // place's activeness for a small speed improvement, but not sure how much it
+  // matters
   attrs1.has_active_mesh_indices =
       attrs1.has_active_mesh_indices || attrs2.has_active_mesh_indices;
   attrs2.has_active_mesh_indices =

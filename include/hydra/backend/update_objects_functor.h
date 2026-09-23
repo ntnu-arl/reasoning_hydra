@@ -33,30 +33,43 @@
  * purposes notwithstanding any copyright notation herein.
  * -------------------------------------------------------------------------- */
 #pragma once
+#include <config_utilities/factory.h>
+
+#include "hydra/backend/association_strategies.h"
 #include "hydra/backend/merge_tracker.h"
 #include "hydra/backend/update_functions.h"
 #include "hydra/utils/active_window_tracker.h"
-#include "hydra/utils/nearest_neighbor_utilities.h"
 
 namespace hydra {
 
 struct UpdateObjectsFunctor : public UpdateFunctor {
-  UpdateObjectsFunctor();
-  Hooks hooks() const override;
-  MergeList call(const DynamicSceneGraph& unmerged,
-                 SharedDsgInfo& dsg,
-                 const UpdateInfo::ConstPtr& info) const override;
+  struct Config {
+    //! Allow mesh vertices for each object to be merged
+    bool allow_connection_merging = true;
+    //! Association strategy for finding matches to active nodes
+    MergeProposer::Config merge_proposer = {config::VirtualConfig<AssociationStrategy>{
+        association::SemanticNearestNode::Config{}}};
+  } const config;
 
-  std::optional<NodeId> proposeMerge(const SceneGraphLayer& layer,
-                                     const ObjectNodeAttributes& attrs) const;
+  explicit UpdateObjectsFunctor(const Config& config);
+  Hooks hooks() const override;
+  void call(const DynamicSceneGraph& unmerged,
+            SharedDsgInfo& dsg,
+            const UpdateInfo::ConstPtr& info) override;
+  MergeList findMerges(const DynamicSceneGraph& graph,
+                       const UpdateInfo::ConstPtr& info) const;
 
   void mergeAttributes(const DynamicSceneGraph& layer, NodeId from, NodeId to) const;
 
-  size_t num_merges_to_consider = 1;
-  bool allow_connection_merging = true;
-
   mutable ActiveWindowTracker active_tracker;
-  mutable SemanticNodeFinders node_finders;
+  const MergeProposer merge_proposer;
+
+ private:
+  inline static const auto registration_ =
+      config::RegistrationWithConfig<UpdateFunctor, UpdateObjectsFunctor, Config>(
+          "UpdateObjectsFunctor");
 };
+
+void declare_config(UpdateObjectsFunctor::Config& config);
 
 }  // namespace hydra

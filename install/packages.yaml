@@ -1,0 +1,41 @@
+repositories:
+  config_utilities:
+    type: git
+    url: https://github.com/ntnu-arl/config_utilities.git
+    version: ros2_jazzy/main
+  hydra_ros:
+    type: git
+    url: https://github.com/ntnu-arl/hydra_ros_private.git
+    version: ros2_jazzy/main
+  ianvs:
+    type: git
+    url: https://github.com/MIT-SPARK/Ianvs.git
+    version: main
+  kimera_pgmo:
+    type: git
+    url: https://github.com/ntnu-arl/kimera_pgmo_private.git
+    version: ros2_jazzy/main
+  kimera_rpgo:
+    type: git
+    url: https://github.com/MIT-SPARK/Kimera-RPGO.git
+    version: develop
+  pose_graph_tools:
+    type: git
+    url: https://github.com/MIT-SPARK/pose_graph_tools.git
+    version: ros2
+  semantic_inference:
+    type: git
+    url: https://github.com/ntnu-arl/semantic_inference_ros_private.git
+    version: ros2_jazzy/main
+  spark_dsg:
+    type: git
+    url: https://github.com/ntnu-arl/reasoning_Spark-DSG_private.git
+    version: ros2_jazzy/main
+  spatial_hash:
+    type: git
+    url: https://github.com/MIT-SPARK/Spatial-Hash.git
+    version: main
+  teaser_plusplus:
+    type: git
+    url: https://github.com/MIT-SPARK/TEASER-plusplus.git
+    version: master

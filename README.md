@@ -1,217 +1,107 @@
-# <div align="center">Relationship-Aware Hierarchical 3D Scene Graph</div>
+# Reasoning Hydra for HFLEX-EQA
 
-<div align="center">
-  <a href="https://ntnu-arl.github.io/reasoning_graph/"><img src="https://img.shields.io/badge/Homepage-1E88E5?style=flat-square" alt="Webpage"></a>
-  <a href="https://arxiv.org/abs/2602.02456"><img src="https://img.shields.io/badge/arXiv-78909C?style=flat-square" alt="arXiv"></a>
-  <a href="https://huggingface.co/datasets/ntnu-arl/reasoning-graph-dataset"><img src="https://img.shields.io/badge/Dataset-1EE5B?style=flat-square" alt="Dataset"></a>
-  <a href="https://youtu.be/as_oUaFT2hE"><img src="https://img.shields.io/badge/YouTube-E57373?style=flat-square" alt="YouTube"></a>
-  <a href="https://doi.org/10.5281/zenodo.18496204"><img src="https://img.shields.io/badge/ZenodoDOI-73E5E5?style=flat-square" alt="Zenodo DOI"></a>
-</div>
+[![License](https://img.shields.io/badge/License-BSD-blue.svg)](LICENSE)
+[![ROS 2 Jazzy](https://img.shields.io/badge/ROS%202-Jazzy-22314E.svg)](https://docs.ros.org/en/jazzy/)
 
-![License: MIT](https://img.shields.io/badge/License-BSD-green.svg)
-![ROS Version](https://img.shields.io/badge/ROS-Noetic-blue)
-
-This package implements an **enhanced hierarchical 3D scene graph** based on [Hydra](https://github.com/MIT-SPARK/Hydra/tree/main), integrating open-vocabulary features for rooms and objects, and supporting object-relational reasoning.
-
-We leverage a **Vision-Language Model (VLM)** to infer semantic relationships. Additionally, we introduce a **task reasoning module** that combines **Large Language Models (LLM)** and a VLM to interpret the scene graph’s semantic and relational information, enabling agents to reason about tasks and interact with their environment intelligently.
-
-<div align="center">
-    <img src="assets/demo.png" alt="Demo Scene Graph">
-</div>
-
----
+This repository contains the scene graph and mapping library used by [HFLEX-EQA](https://arxiv.org/abs/2609.26360), an embodied question answering system for previously unseen indoor environments. It extends [Hydra](https://github.com/MIT-SPARK/Hydra) and the [relationship-aware hierarchical scene graph](https://github.com/ntnu-arl/reasoning_hydra) with the map, navigation, frontier, and visual-memory layers needed for exploration. The high-level EQA planner and ROS launch composition live in [hvlm_planner](https://github.com/ntnu-arl/hvlm_planner/tree/hflex_eqa) and [hvlm_planner_ros](https://github.com/ntnu-arl/hvlm_planner_ros/tree/hflex_eqa).
 
 ## Table of Contents
 
+- [EQA Scene Graph](#eqa-scene-graph)
 - [Setup](#setup)
-  - [General Requirements](#general-requirements)
-  - [Building](#building)
-  - [Python Environment for Semantics and Reasoning](#python-environment-for-semantics-and-reasoning)
 - [Usage](#usage)
-  - [Scene Graph Construction](#scene-graph-construction)
-    - [Uhumans2 Dataset](#uhumans2)
-    - [Replica Dataset](#replica)
-    - [Habitat-Matterport 3D Semantics Dataset](#habitat-matterport-3d-semantics-dataset)
-    - [Robot Deployment](#robot)
-  - [Task Reasoning](#task-reasoning)
+  - [Habitat Simulation](#habitat-simulation)
+  - [Robot Deployment](#robot-deployment)
 - [Citation](#citation)
 - [License](#license)
 - [Acknowledgements](#acknowledgements)
 - [Contact](#contact)
 
----
+## EQA Scene Graph
+
+From posed RGB-D observations and semantic features, this fork incrementally builds a graph of labeled rooms, objects, navigation nodes, semantic frontiers, agent views, and a metric-semantic mesh. The EQA-specific parts are:
+
+- **Open-vocabulary occupancy map:** depth and pixel-level language features are fused into a TSDF, then projected into a 2D occupancy grid. Cells retain free/occupied/unknown state and averaged semantic features. See [`OccupancyIntegrator`](src/reconstruction/occupancy_integrator.cpp) and the [`occupancy` settings](config/datasets/habitat.yaml).
+- **Traversability graph:** a 2D generalized Voronoi diagram (GVD) extracted from the occupancy map produces the `TRAVERSABILITY` navigation layer used to connect rooms and exploration goals. See [`GvdPlace2DExtractor`](src/frontend/gvd_place_2d_extractor.cpp).
+- **Semantic frontiers:** wavefront detection finds boundaries between observed free space and unexplored space. Frontier nodes carry position, direction, size, and nearby occupancy-map features, which the planner uses to score where to explore next. See [`OccupancyFrontierExtractor`](src/frontend/occupancy_frontier_extractor.cpp).
+- **Key views:** selected agent nodes retain an RGB image and image embedding when pose and visual novelty thresholds are met. These views become room-associated visual memory for EQA. See [`UpdateAgentsFunctor`](src/backend/update_agents_functor.cpp) and its `enable_agent_keyframes` settings.
+
+The [Habitat config](config/datasets/habitat.yaml) and [ANYmal config](config/datasets/anymal.yaml) enable these layers with different camera-height, occupancy, and GVD parameters. The optional topological floorplan is handled by the EQA planner; it is separate from the online scene graph.
 
 ## Setup
 
-### General Requirements
-
-These instructions assume that `ros-noetic-desktop-full` is installed on **Ubuntu 20.04**.
-
-Install general dependencies:
+Use Ubuntu 24.04, ROS 2 Jazzy, an NVIDIA GPU, and the Docker workflow in the [HFLEX-EQA installation guide](https://github.com/ntnu-arl/hvlm_planner/tree/hflex_eqa#installation-with-docker). Import its [desktop](https://github.com/ntnu-arl/hvlm_planner/blob/hflex_eqa/install/default.repos) or [Jetson Thor](https://github.com/ntnu-arl/hvlm_planner/blob/hflex_eqa/install/thor.repos) dependency manifest; both select this repository's `hflex_eqa` branch. Build the workspace inside the container:
 
 ```bash
-sudo apt install python3-rosdep python3-catkin-tools python3-vcstool
+cd /developer/hflex_eqa_ws
+rosdep install --from-paths src --ignore-src -r -y
+colcon build --symlink-install --continue-on-error
+source install/setup.bash
 ```
 
-### Building
-
-Build the repository in **Release mode**:
-
-```bash
-mkdir -p catkin_ws/src
-cd catkin_ws
-catkin init
-catkin config -DCMAKE_BUILD_TYPE=Release
-
-cd src
-git clone git@github.com:ntnu-arl/reasoning_hydra.git
-vcs import . < reasoning_hydra/install/packages.repos
-rosdep install --from-paths . --ignore-src -r -y
-
-cd ..
-catkin build
-```
-
-### Python Environment for Semantics and Reasoning
-
-Follow the instructions in [semantic_inference_ros](https://github.com/ntnu-arl/semantic_inference_ros) to set up the Python environment required to run the semantic and reasoning models.
-
----
+This is a C++ library; launch the EQA system through its ROS packages. The associated ROS interface is in [`hydra_ros`](https://github.com/ntnu-arl/hydra_ros_private/tree/hflex_eqa).
 
 ## Usage
 
-### Scene Graph Construction
+### Habitat Simulation
 
-The system supports multiple datasets and online deployment on robots with GPU capabilities (e.g., **Nvidia Jetson Orin AGX**).
-
-#### Uhumans2
-
-Download rosbags from [Uhumans2 dataset](https://web.mit.edu/sparklab/datasets/uHumans2/).
-
-Start the scene graph:
+Follow the [dataset and floorplan setup](https://github.com/ntnu-arl/hvlm_planner/tree/hflex_eqa#download-hm3d-and-eqa-benchmarks), then run one scene with [`habitat_eqa.launch.yaml`](https://github.com/ntnu-arl/hvlm_planner_ros/blob/hflex_eqa/hvlm_planner_ros/launch/habitat/habitat_eqa.launch.yaml):
 
 ```bash
-roslaunch hydra_ros uhumans2.launch
+ros2 launch hvlm_planner_ros habitat_eqa.launch.yaml \
+  scene_file:=/developer/hm3d/val/00800-TEEsavR23oF/TEEsavR23oF.basis.glb \
+  question:="What color is the microwave"
 ```
 
-In a separate terminal, play the rosbag:
+The ROS launch selects [`config/datasets/habitat.yaml`](config/datasets/habitat.yaml). For OpenEQA or ExploreEQA dataset loops, use `ros2 launch simulation_manager_ros simulate.launch.yaml` as described in the [main guide](https://github.com/ntnu-arl/hvlm_planner/tree/hflex_eqa#run-openeqa-or-exploreeqa).
+
+### Robot Deployment
+
+On a Jetson Thor mounted on ANYmal, use the [Thor Docker instructions](https://github.com/ntnu-arl/hvlm_planner/tree/hflex_eqa#deploy-on-jetson-thor-and-anymal). The robot must supply the camera topics and transforms configured by [`scene_graph.launch.yaml`](https://github.com/ntnu-arl/hvlm_planner_ros/blob/hflex_eqa/hvlm_planner_ros/launch/scene_graph.launch.yaml). After building and sourcing the workspace, launch the mapping and EQA stacks:
 
 ```bash
-rosbag play path/to/rosbag
+ros2 launch hvlm_planner_ros scene_graph.launch.yaml
+ros2 launch hvlm_planner_ros eqa.launch.yaml \
+  floorplan_json_path:=/path/to/building_floorplan.json
 ```
 
-#### Replica
-
-Follow [NICE-SLAM instructions](https://github.com/cvg/nice-slam#replica-1) to download posed RGB-D data from Replica scenes.
-
-Run the scene graph:
-
-```bash
-roslaunch hydra_ros replica.launch
-```
-
-Publish the data:
-
-```bash
-roslaunch hydra_ros publish_replica.launch dataset_path:=<Path to your replica dataset> scene_name:=<Scene name>
-```
-
-#### Habitat-Matterport 3D Semantics Dataset
-
-Follow [HOV-SG instructions](https://github.com/hovsg/HOV-SG?tab=readme-ov-file#habitat-matterport-3d-semantics) (Step 2 can be skipped) to download posed RGB-D data from several scenes.
-
-Run the scene graph:
-
-```bash
-roslaunch hydra_ros hm3dsem.launch
-roslaunch hydra_ros publish_hm3dsem.launch dataset_path:=<Path to hm3d_trajectories> scene_name:=<Scene name>
-```
-
-#### Robot Deployment
-
-To run the scene graph on your robot:
-
-- Robot must provide posed RGB-D data as `sensor_msgs/Image`
-- Pose must be provided via **TFs**
-
-Update [robot.launch](https://github.com/ntnu-arl/reasoning_hydra_ros/blob/master/hydra_ros/launch/robot.launch) with the correct TFs and camera topic names, then run:
-
-```bash
-roslaunch hydra_ros robot.launch
-```
-
-We provide recorded data from experiments with an ANYMal robot. Download it [here](https://huggingface.co/datasets/ntnu-arl/reasoning-graph-dataset).
-
-To use this data:
-
-```bash
-roslaunch hydra_ros robot.launch playback_mode:=True
-```
-
-Then play one of the downloaded rosbags:
-
-```bash
-rosbag play <bag_to_play> --topics /tf /camera/aligned_depth_to_color/image_raw/compressedDepth /camera/color/camera_info /camera/color/image_raw/compressed --clock
-```
-
----
-
-### Task Reasoning
-
-The **reasoning module** (VLM + LLMs) requires an **internet connection**.
-
-- LLM queries are done via **OpenAI API**.
-- A large VLM is hosted externally (setup instructions: [semantic_inference_ros](https://github.com/ntnu-arl/semantic_inference_ros))
-
-**IMPORTANT:** When using the reasoning module, set your OpenAI and FastAPI (see https://github.com/ntnu-arl/semantic_inference_ros) keys as environment variables before launching the ROS nodes:
-```bash
-export OPENAI_API_KEY=<Your OpenAI API Key>
-export FASTAPI_API_KEY=<Your server FastAPI Key>
-```
-
-Once the scene graph is constructed, either:
-
-1. Use the provided **rviz GUI** to interact with the service and visualize task reasoning results on the scene graph.
-
-2. Or call the [ROS service](https://github.com/ntnu-arl/semantic_inference_ros/blob/master/semantic_inference_msgs/srv/NavigationPrompt.srv):  ```/semantic_inference/navigation_prompt_service/navigation_prompt```
-
-
-
----
+The robot scene graph launch selects [`config/datasets/anymal.yaml`](config/datasets/anymal.yaml). Adjust its occupancy-height and GVD parameters for a different sensor mount.
 
 ## Citation
 
-If you use this work in your research, please cite:
+Please cite [HFLEX-EQA](https://arxiv.org/abs/2609.26360) for this integration and the [relationship-aware scene graph work](https://github.com/ntnu-arl/reasoning_hydra) on which our scene graph is based. Hydra's [original paper](http://www.roboticsproceedings.org/rss18/p050.pdf) should also be cited when using its core mapping system.
 
 ```bibtex
+@article{puigjaner2026hflex-eqa,
+  title={Hierarchical Floorplan-Guided Vision-Language Exploration for Embodied Question Answering},
+  author={Gassol Puigjaner, Albert and Alexis, Kostas},
+  journal={arXiv},
+  year={2026}
+}
+
 @inproceedings{puigjaner2026reasoninggraph,
-    title={Relationship-Aware Hierarchical 3D Scene Graph},
-    author={Gassol Puigjaner, Albert and Zacharia, Angelos and Alexis, Kostas},
-    booktitle={2026 IEEE International Conference on Robotics and Automation (ICRA)}, 
-    year={2026}
+  title={Relationship-Aware Hierarchical 3D Scene Graph},
+  author={Gassol Puigjaner, Albert and Zacharia, Angelos and Alexis, Kostas},
+  booktitle={2026 IEEE International Conference on Robotics and Automation (ICRA)},
+  year={2026}
+}
+
+@inproceedings{hughes2022hydra,
+  title={Hydra: A Real-time Spatial Perception System for 3D Scene Graph Construction and Optimization},
+  author={Hughes, Nathan and Chang, Yun and Carlone, Luca},
+  booktitle={Robotics: Science and Systems (RSS)},
+  year={2022}
 }
 ```
 
----
-
 ## License
 
-Released under **BSD-3-Clause**.
-
----
+See the repository [LICENSE](LICENSE) and preserve the license notices in individual source files.
 
 ## Acknowledgements
 
-This open-source release is based on work supported by the **European Commission** through:
-
-- **Project SYNERGISE**, under **Horizon Europe Grant Agreement No. 101121321**
-
----
+This work was supported by the European Commission through Project SYNERGISE (Horizon Europe Grant Agreement No. 101121321) and by the Research Council of Norway through Grant NCEI (No. 357451).
 
 ## Contact
 
-For questions or support, reach out via [GitHub Issues](https://github.com/ntnu-arl/reasoning_hydra/issues) or contact the authors directly:
-
-- [Albert Gassol Puigjaner](mailto:albert.g.puigjaner@ntnu.no)
-- [Angelos Zacharia](mailto:angelos.zacharia@ntnu.no)
-- [Kostas Alexis](mailto:konstantinos.alexis@ntnu.no)
+For questions about the EQA integration, use [GitHub Issues](https://github.com/ntnu-arl/hvlm_planner/issues) or contact [Albert Gassol Puigjaner](mailto:albert.g.puigjaner@ntnu.no) and [Kostas Alexis](mailto:konstantinos.alexis@ntnu.no).

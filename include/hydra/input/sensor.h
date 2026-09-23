@@ -50,70 +50,13 @@
 
 #include <Eigen/Geometry>
 #include <limits>
-#include <memory>
-#include <string>
 #include <vector>
+
+#include "hydra/input/sensor_extrinsics.h"
 
 namespace hydra {
 
 struct InputData;
-
-struct SensorExtrinsics {
-  SensorExtrinsics();
-
-  explicit SensorExtrinsics(const Eigen::Quaterniond& body_R_sensor);
-
-  explicit SensorExtrinsics(const Eigen::Vector3d& body_p_sensor);
-
-  SensorExtrinsics(const Eigen::Quaterniond& body_R_sensor,
-                   const Eigen::Vector3d& body_p_sensor);
-
-  inline operator Eigen::Isometry3d() const {
-    return Eigen::Translation3d(body_p_sensor) * body_R_sensor;
-  }
-
-  Eigen::Quaterniond body_R_sensor;
-  Eigen::Vector3d body_p_sensor;
-};
-
-struct IdentitySensorExtrinsics : public SensorExtrinsics {
-  struct Config {};
-
-  explicit IdentitySensorExtrinsics(const Config& config);
-
- private:
-  inline static const auto registration_ =
-      config::RegistrationWithConfig<SensorExtrinsics,
-                                     IdentitySensorExtrinsics,
-                                     Config>("identity");
-};
-
-struct ParamSensorExtrinsics : public SensorExtrinsics {
-  struct Config {
-    Eigen::Quaterniond body_R_sensor = Eigen::Quaterniond::Identity();
-    Eigen::Vector3d body_p_sensor = Eigen::Vector3d::Identity();
-  };
-
-  explicit ParamSensorExtrinsics(const Config& config);
-
- private:
-  inline static const auto registration_ =
-      config::RegistrationWithConfig<SensorExtrinsics, ParamSensorExtrinsics, Config>(
-          "param");
-};
-
-struct KimeraSensorExtrinsics : public SensorExtrinsics {
-  struct Config {
-    std::string sensor_filepath = "";
-  };
-
-  explicit KimeraSensorExtrinsics(const Config& config);
-
- private:
-  inline static const auto registration_ =
-      config::RegistrationWithConfig<SensorExtrinsics, KimeraSensorExtrinsics, Config>(
-          "kimera");
-};
 
 /**
  * @brief Base class for different sensors the system could use.
@@ -129,21 +72,11 @@ class Sensor {
   struct Config {
     double min_range = 0.0f;
     double max_range = std::numeric_limits<double>::infinity();
-    double horizontal_resolution = -1;
-    /// Lidar resolution (points/degrees)
-    double vertical_resolution = -1;
-    /// Horizontal field of view (degrees)
-    double horizontal_fov = 360.0;
-    /// vertical field of view (degrees)
-    double vertical_fov = -1.0;
-    /// is vertical fov asymmetric?
-    bool is_asymmetric = false;
-    /// top offset of vertical field of view (degrees)
-    double vertical_fov_top = -1.0;
+    // TODO(nathan) try to avoid pulling in factories in the header
     config::VirtualConfig<SensorExtrinsics> extrinsics;
   } const config;
 
-  explicit Sensor(const Config& config);
+  explicit Sensor(const Config& config, const std::string& name);
 
   virtual ~Sensor() = default;
 
@@ -165,6 +98,12 @@ class Sensor {
     Eigen::Isometry3d extrinsics_transform = *extrinsics_;
     return extrinsics_transform.cast<T>();
   }
+
+  /**
+   * @brief Get depth value depending on the sensor type
+   * @param p A 3D point from a sensor
+   */
+  virtual float getPointDepth(const Eigen::Vector3f& p) const = 0;
 
   /**
    * @brief Get the average ray density at a voxel at a given range
@@ -220,13 +159,15 @@ class Sensor {
   virtual bool pointIsInViewFrustum(const Eigen::Vector3f& point_C,
                                     float inflation_distance = 0.f) const = 0;
 
+  //! @brief Name of current sensor
+  const std::string name;
+
+  virtual YAML::Node dump() const;
+
  protected:
   const std::unique_ptr<SensorExtrinsics> extrinsics_;
 };
 
-void declare_config(IdentitySensorExtrinsics::Config& config);
-void declare_config(ParamSensorExtrinsics::Config& config);
-void declare_config(KimeraSensorExtrinsics::Config& config);
 void declare_config(Sensor::Config& config);
 
 }  // namespace hydra

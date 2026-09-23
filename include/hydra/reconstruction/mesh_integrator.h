@@ -1,6 +1,3 @@
-// Portions of the following code and their modifications are originally from
-// https://github.com/MIT-SPARK/Hydra/tree/main and are licensed under the following
-// license:
 /* -----------------------------------------------------------------------------
  * Copyright 2022 Massachusetts Institute of Technology.
  * All Rights Reserved
@@ -35,12 +32,6 @@
  * Government is authorized to reproduce and distribute reprints for Government
  * purposes notwithstanding any copyright notation herein.
  * -------------------------------------------------------------------------- */
-
-// Copyright (c) 2025, Autonomous Robots Lab, Norwegian University of Science and
-// Technology All rights reserved.
-
-// This source code is licensed under the BSD-style license found in the
-// LICENSE file in the root directory of this source tree.
 #pragma once
 
 #include "hydra/reconstruction/index_getter.h"
@@ -111,7 +102,7 @@ class MeshIntegrator {
   const MeshIntegratorConfig config;
 
  protected:
-  static const Eigen::Matrix<int, 3, 8> cube_index_offsets_;
+  const static Eigen::Matrix<int, 3, 8> cube_index_offsets_;
   mutable Eigen::Matrix<float, 3, 8> cube_coord_offsets_;
 };
 

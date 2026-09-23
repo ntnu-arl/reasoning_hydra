@@ -37,34 +37,34 @@
 
 #include <memory>
 
-#include "hydra/common/common.h"
 #include "hydra/common/output_sink.h"
 #include "hydra/frontend/freespace_places_interface.h"
-#include "hydra/places/graph_extractor_config.h"
+#include "hydra/places/graph_extractor.h"
 #include "hydra/places/gvd_integrator_config.h"
 #include "hydra/places/gvd_voxel.h"
 #include "hydra/reconstruction/tsdf_interpolators.h"
-#include "hydra/utils/log_utilities.h"
 
 namespace hydra {
 
 namespace places {
 // forward declare to avoid include
 class GvdIntegrator;
-class GraphExtractorInterface;
 }  // namespace places
+
+struct VolumetricWindow;
 
 class GvdPlaceExtractor : public FreespacePlacesInterface {
  public:
   using PositionMatrix = Eigen::Matrix<double, 3, Eigen::Dynamic>;
   using Sink = OutputSink<uint64_t,
-                          const Eigen::Isometry3f&,
+                          const Eigen::Isometry3d&,
                           const places::GvdLayer&,
-                          const places::GraphExtractorInterface*>;
+                          const places::GraphExtractor&>;
 
   struct Config {
+    std::string layer = DsgLayers::PLACES;
     places::GvdIntegratorConfig gvd;
-    config::VirtualConfig<places::GraphExtractorInterface> graph;
+    places::GraphExtractor::Config graph;
     config::VirtualConfig<TsdfInterpolator> tsdf_interpolator;
     size_t min_component_size = 3;
     bool filter_places = true;
@@ -81,15 +81,13 @@ class GvdPlaceExtractor : public FreespacePlacesInterface {
 
   virtual ~GvdPlaceExtractor();
 
-  void save(const LogSetup& logs) const override;
-
   NodeIdSet getActiveNodes() const override;
 
   // takes in a 3xN matrix
   std::vector<bool> inFreespace(const PositionMatrix& positions,
                                 double freespace_distance_m) const override;
 
-  void detect(const ReconstructionOutput& msg) override;
+  void detect(const ActiveWindowOutput& msg) override;
 
   void updateGraph(uint64_t timestamp_ns, DynamicSceneGraph& graph) override;
 
@@ -100,9 +98,10 @@ class GvdPlaceExtractor : public FreespacePlacesInterface {
  protected:
   mutable std::mutex gvd_mutex_;
   places::GvdLayer::Ptr gvd_;
-  std::shared_ptr<places::GraphExtractorInterface> graph_extractor_;
+  places::GraphExtractor graph_extractor_;
   std::unique_ptr<places::GvdIntegrator> gvd_integrator_;
   std::unique_ptr<TsdfInterpolator> tsdf_interpolator_;
+  std::unique_ptr<VolumetricWindow> map_window_;
   NodeIdSet active_nodes_;
   Eigen::Vector3d latest_pos_;
   Sink::List sinks_;

@@ -44,7 +44,7 @@ Eigen::Vector3d getRoomPosition(const SceneGraphLayer& places,
 
   Eigen::Vector3d room_position = Eigen::Vector3d::Zero();
   for (const auto& place : cluster) {
-    room_position += places.getPosition(place);
+    room_position += getNodePosition(places, place);
   }
   room_position /= cluster.size();
 
@@ -128,11 +128,11 @@ void addEdgesToRoomLayer(DynamicSceneGraph& graph,
     }
 
     for (const auto child_id : node.children()) {
-      if (graph.isDynamic(child_id)) {
-        continue;
+      const auto& child = graph.getNode(child_id);
+      if (child.layer.partition) {
+        continue;  // skip searching over agent nodes
       }
 
-      const auto& child = graph.getNode(child_id);
       for (const auto& sibling_id : child.siblings()) {
         const auto& sibling = graph.getNode(sibling_id);
         const auto parent = sibling.getParent();

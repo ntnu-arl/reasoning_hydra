@@ -34,8 +34,6 @@
  * -------------------------------------------------------------------------- */
 #pragma once
 
-#include <config_utilities/factory.h>
-
 #include <vector>
 
 #include "hydra/input/input_data.h"
@@ -51,11 +49,29 @@ namespace hydra {
  */
 class Lidar : public Sensor {
  public:
-  explicit Lidar(const Config& config);
+  // Note: negative parameters are REQUIRED
+  struct Config : public Sensor::Config {
+    /// Lidar angular resolution (points/degrees)
+    double horizontal_resolution = -1;
+    /// Lidar resolution (points/degrees)
+    double vertical_resolution = -1;
+    /// Horizontal field of view (degrees)
+    double horizontal_fov = 360.0;
+    /// vertical field of view (degrees)
+    double vertical_fov = -1.0;
+    /// is vertical fov asymmetric?
+    bool is_asymmetric = false;
+    /// top offset of vertical field of view (degrees)
+    double vertical_fov_top = -1.0;
+  };
+
+  explicit Lidar(const Config& config, const std::string& name);
 
   virtual ~Lidar() = default;
 
   const Config& getConfig() const { return config_; }
+
+  float getPointDepth(const Eigen::Vector3f& p) const override;
 
   float computeRayDensity(float voxel_size, float depth) const override;
 
@@ -76,8 +92,10 @@ class Lidar : public Sensor {
   bool pointIsInViewFrustum(const Eigen::Vector3f& point_C,
                             float inflation_distance = 0.0f) const override;
 
+  YAML::Node dump() const override;
+
  private:
-  const Sensor::Config config_;
+  const Config config_;
   const int width_;
   const int height_;
   const float vertical_fov_rad_;
@@ -89,9 +107,6 @@ class Lidar : public Sensor {
   Eigen::Vector3f bottom_frustum_normal_;
   Eigen::Vector3f left_frustum_normal_;
   Eigen::Vector3f right_frustum_normal_;
-
-  inline static const auto registration_ =
-      config::RegistrationWithConfig<Sensor, Lidar, Lidar::Config>("lidar");
 };
 
 void declare_config(Lidar::Config& config);

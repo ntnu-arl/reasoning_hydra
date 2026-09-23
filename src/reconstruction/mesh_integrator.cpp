@@ -1,57 +1,52 @@
-// Portions of the following code and their modifications are originally from
-// https://github.com/MIT-SPARK/Hydra/tree/main and are licensed under the following
-// license:
-/* -----------------------------------------------------------------------------
- * Copyright 2022 Massachusetts Institute of Technology.
- * All Rights Reserved
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *
- *  1. Redistributions of source code must retain the above copyright notice,
- *     this list of conditions and the following disclaimer.
- *
- *  2. Redistributions in binary form must reproduce the above copyright notice,
- *     this list of conditions and the following disclaimer in the documentation
- *     and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
- * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
- * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
- * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * Research was sponsored by the United States Air Force Research Laboratory and
- * the United States Air Force Artificial Intelligence Accelerator and was
- * accomplished under Cooperative Agreement Number FA8750-19-2-1000. The views
- * and conclusions contained in this document are those of the authors and should
- * not be interpreted as representing the official policies, either expressed or
- * implied, of the United States Air Force or the U.S. Government. The U.S.
- * Government is authorized to reproduce and distribute reprints for Government
- * purposes notwithstanding any copyright notation herein.
- * -------------------------------------------------------------------------- */
-
-// Copyright (c) 2025, Autonomous Robots Lab, Norwegian University of Science and
-// Technology All rights reserved.
-
-// This source code is licensed under the BSD-style license found in the
-// LICENSE file in the root directory of this source tree.
+// The original implementation from https://github.com/personalrobotics/OpenChisel and
+// subsequent modifications falls under the following license:
+//
+// The MIT License (MIT)
+// Copyright (c) 2014 Matthew Klingensmith and Ivan Dryanovski
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+//
+// Modifications are also subject to the following copyright and disclaimer:
+//
+// Copyright 2022 Massachusetts Institute of Technology.
+// All Rights Reserved
+//
+// Research was sponsored by the United States Air Force Research Laboratory and
+// the United States Air Force Artificial Intelligence Accelerator and was
+// accomplished under Cooperative Agreement Number FA8750-19-2-1000. The views
+// and conclusions contained in this document are those of the authors and should
+// not be interpreted as representing the official policies, either expressed or
+// implied, of the United States Air Force or the U.S. Government. The U.S.
+// Government is authorized to reproduce and distribute reprints for Government
+// purposes notwithstanding any copyright notation herein.
 #include "hydra/reconstruction/mesh_integrator.h"
 
+#include <config_utilities/validation.h>
 #include <glog/logging.h>
 
 #include <iomanip>
 #include <list>
 #include <thread>
 
-#include "hydra/common/common.h"
 #include "hydra/reconstruction/marching_cubes.h"
 #include "hydra/reconstruction/volumetric_map.h"
+#include "hydra/utils/printing.h"
 
 namespace hydra {
 
@@ -63,8 +58,11 @@ void MeshIntegrator::allocateBlocks(const BlockIndices& blocks,
                                     OccupancyLayer* occupancy) const {
   auto& mesh_layer = map.getMeshLayer();
   for (const BlockIndex& block_index : blocks) {
-    auto& mesh = mesh_layer.allocateBlock(
-        block_index, map.hasSemantics(), map.hasSemantics(), map.hasSemantics());
+    auto& mesh = mesh_layer.allocateBlock(block_index,
+                                          map.hasSemantics(),
+                                          map.hasSemantics(),
+                                          map.hasSemantics(),
+                                          map.hasTracking());
     mesh.clear();
 
     if (!occupancy) {
@@ -176,7 +174,7 @@ void MeshIntegrator::processExterior(VolumetricMap* map,
   BlockIndex block_index;
   while (index_getter->getNextIndex(block_index)) {
     VLOG(10) << "Extracting exterior for block: " << showIndex(block_index);
-    const auto vps = map->config.voxels_per_side;
+    const auto vps = static_cast<int>(map->config.voxels_per_side);
     VoxelIndex v_idx;
 
     // Max X plane
@@ -204,9 +202,6 @@ void MeshIntegrator::processExterior(VolumetricMap* map,
         meshBlockExterior(block_index, v_idx, *map, occupancy);
       }
     }
-
-    // TODO(nathan) push this earlier
-    // mesh->updated = true;
   }
 }
 
@@ -233,6 +228,7 @@ void MeshIntegrator::meshBlockInterior(const BlockIndex& block_index,
 
   const auto coords = block->getVoxelPosition(index);
   auto vertex_block = maybeGetBlockPtr(occupancy, block_index);
+  const auto tracking_block = maybeGetBlockPtr(map.getTrackingLayer(), block_index);
   const auto semantics = maybeGetBlockPtr(map.getSemanticLayer(), block_index);
 
   MarchingCubes::SdfPoints points;
@@ -252,13 +248,17 @@ void MeshIntegrator::meshBlockInterior(const BlockIndex& block_index,
       const auto& semantic_voxel = semantics->getVoxel(corner_index);
       if (!semantic_voxel.empty) {
         point.label = semantic_voxel.semantic_label;
-        point.semantic_feature = semantic_voxel.feature_vector;
+        point.semantic_feature = semantic_voxel.semantic_feature;
         point.panoptic_id = semantic_voxel.panoptic_id;
       }
     }
 
     if (vertex_block) {
       point.vertex_voxel = &vertex_block->getVoxel(corner_index);
+    }
+
+    if (tracking_block) {
+      point.tracking_voxel = &tracking_block->getVoxel(corner_index);
     }
   }
 
@@ -296,6 +296,7 @@ void MeshIntegrator::meshBlockExterior(const BlockIndex& block_index,
 
   const auto coords = block->getVoxelPosition(index);
   auto vertex_block = maybeGetBlockPtr(occupancy, block_index);
+  const auto tracking_block = maybeGetBlockPtr(map.getTrackingLayer(), block_index);
   const auto semantics = maybeGetBlockPtr(map.getSemanticLayer(), block_index);
 
   MarchingCubes::SdfPoints points;
@@ -309,6 +310,9 @@ void MeshIntegrator::meshBlockExterior(const BlockIndex& block_index,
       voxel = &block->getVoxel(c_idx);
       if (vertex_block) {
         point.vertex_voxel = &vertex_block->getVoxel(c_idx);
+      }
+      if (tracking_block) {
+        point.tracking_voxel = &tracking_block->getVoxel(c_idx);
       }
       if (semantics) {
         semantic_voxel = &semantics->getVoxel(c_idx);
@@ -329,6 +333,11 @@ void MeshIntegrator::meshBlockExterior(const BlockIndex& block_index,
         semantic_voxel = &s_block.getVoxel(c_idx);
       }
 
+      if (tracking_block) {
+        const auto& t_block = map.getTrackingLayer()->getBlock(n_idx);
+        point.tracking_voxel = &t_block.getVoxel(c_idx);
+      }
+
       // // we can't ensure that neighboring blocks stay in sync with the current mesh
       // // easily, so we don't track nearest surfaces to neighboring blocks for now
       // auto neighbor_vertex_block = vertex_layer_->getBlockPtr(n_idx);
@@ -344,7 +353,7 @@ void MeshIntegrator::meshBlockExterior(const BlockIndex& block_index,
     point.color = voxel->color;
     if (semantic_voxel && !semantic_voxel->empty) {
       point.label = semantic_voxel->semantic_label;
-      point.semantic_feature = semantic_voxel->feature_vector;
+      point.semantic_feature = semantic_voxel->semantic_feature;
       point.panoptic_id = semantic_voxel->panoptic_id;
     }
   }

@@ -33,38 +33,40 @@
  * purposes notwithstanding any copyright notation herein.
  * -------------------------------------------------------------------------- */
 #pragma once
+#include <spark_dsg/dynamic_scene_graph.h>
+
 #include <atomic>
 #include <map>
 #include <memory>
 #include <mutex>
 
-#include "hydra/common/dsg_types.h"
-
 namespace hydra {
 
 struct SharedDsgInfo {
   using Ptr = std::shared_ptr<SharedDsgInfo>;
+  struct Config {
+    std::map<std::string, spark_dsg::LayerKey> layers{
+        {spark_dsg::DsgLayers::OBJECTS, 2},
+        {spark_dsg::DsgLayers::PLACES, 3},
+        {spark_dsg::DsgLayers::MESH_PLACES, {3, 1}},
+        {spark_dsg::DsgLayers::TRAVERSABILITY, 4},
+        {spark_dsg::DsgLayers::ROOMS, 5},
+        {spark_dsg::DsgLayers::BUILDINGS, 6},
+        {spark_dsg::DsgLayers::AGENTS, 2},
+        {spark_dsg::DsgLayers::FRONTIERS, 7}};
+  } const config;
 
-  explicit SharedDsgInfo(const std::map<LayerId, char>& layer_id_map);
+  explicit SharedDsgInfo(const Config& config);
 
   SharedDsgInfo::Ptr clone() const;
 
-  // mutexes are considered ordered (for avoiding deadlock):
-  // 1. SharedDsgInfo::mutex (lcd)
-  // 2. SharedDsgInfo::mutex (backend)
-  // 3. SharedDsgInfo::mutex (frontend)
-  // 4. SharedModuleState::mesh_mutex
-  // When acquiring two mutexes, always acquire the lowest mutex first
   mutable std::mutex mutex;
   std::atomic<bool> updated;
-  uint64_t last_update_time;
-  DynamicSceneGraph::Ptr graph;
-  std::map<char, LayerId> prefix_layer_map;
-  std::map<LayerId, char> layer_prefix_map;
-  std::map<NodeId, NodeId> merges;
-
- private:
-  SharedDsgInfo();
+  uint64_t sequence_number = 0;
+  spark_dsg::DynamicSceneGraph::Ptr graph;
+  std::map<spark_dsg::NodeId, spark_dsg::NodeId> merges;
 };
+
+void declare_config(SharedDsgInfo::Config& config);
 
 }  // namespace hydra

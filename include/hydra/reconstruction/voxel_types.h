@@ -1,6 +1,3 @@
-// Portions of the following code and their modifications are originally from
-// https://github.com/MIT-SPARK/Hydra/tree/main and are licensed under the following
-// license:
 /* -----------------------------------------------------------------------------
  * Copyright 2022 Massachusetts Institute of Technology.
  * All Rights Reserved
@@ -35,12 +32,6 @@
  * Government is authorized to reproduce and distribute reprints for Government
  * purposes notwithstanding any copyright notation herein.
  * -------------------------------------------------------------------------- */
-
-// Copyright (c) 2025, Autonomous Robots Lab, Norwegian University of Science and
-// Technology All rights reserved.
-
-// This source code is licensed under the BSD-style license found in the
-// LICENSE file in the root directory of this source tree.
 #pragma once
 
 #include <spark_dsg/mesh.h>
@@ -48,7 +39,7 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <memory>
+#include <optional>
 
 #include "hydra/common/common_types.h"
 
@@ -89,33 +80,33 @@ using GlobalIndexMap = spatial_hash::IndexHashMap<ValueT>;
 struct TsdfVoxel {
   float distance = 0.0f;
   float weight = 0.0f;
-  Color color;
-};
-
-struct BaseSemanticVoxel {
-  //! Current MLE semantic label
-  uint32_t semantic_label = 0;
-  //! Log-likelihood priors of each label
-  Eigen::VectorXf semantic_likelihoods;
-  //! Whether or not the voxel has been initialized
-  bool empty = true;
-  //! Color
-  Color color;
+  spark_dsg::Color color;
 };
 
 // Based on the semantic voxel from Kimera-Semantics
-struct SemanticVoxel : public BaseSemanticVoxel {
+struct SemanticVoxel {
+  //! Current MLE semantic label
+  uint32_t semantic_label = 0;
   //! OpenVocabulary feature vector
-  std::optional<Eigen::VectorXf> feature_vector;
+  std::optional<Eigen::VectorXf> semantic_feature;
   //! Number of observations
   uint32_t num_observations = 0;
   //! Panoptic ID
   uint16_t panoptic_id = 0;
+  //! Log-likelihood priors of each label
+  Eigen::VectorXf semantic_likelihoods;
+  //! Labels assigned to each likelihood slot
+  Eigen::Matrix<uint32_t, Eigen::Dynamic, 1> semantic_labels;
+  //! Pixel-wise feature vector
+  std::optional<Eigen::VectorXf> pixelwise_feature;
+  //! Whether or not the voxel has been initialized
+  bool empty = true;
 };
 
 // Voxel to track which parts of space are free with high confidence.
 struct TrackingVoxel {
   // Time stamp [ns] when the voxel was last observed.
+  TimeStamp first_observed = 0;
   TimeStamp last_observed;
   TimeStamp last_occupied;
   bool ever_free = false;
@@ -144,6 +135,13 @@ struct TsdfBlock : public spatial_hash::VoxelBlock<TsdfVoxel> {
     tracking_updated = true;
   }
 
+  void clearUpdated() const {
+    updated = false;
+    esdf_updated = false;
+    mesh_updated = false;
+    tracking_updated = false;
+  }
+
   // Function to enable iterating over update blocks.
   static bool esdfUpdated(const TsdfBlock& block) { return block.esdf_updated; }
   static bool meshUpdated(const TsdfBlock& block) { return block.mesh_updated; }
@@ -155,10 +153,16 @@ struct MeshBlock : public Mesh, public spatial_hash::Block {
   using ConstPtr = std::shared_ptr<const MeshBlock>;
   MeshBlock(const float block_size,
             const BlockIndex& index,
-            bool has_labels = true,
+            bool has_labels = false,
+            bool has_stamps = false,
             bool has_semantic_features = true,
             bool has_panoptic_ids = true)
-      : Mesh(true, false, has_labels, has_semantic_features, has_panoptic_ids, false),
+      : Mesh(true,
+             has_stamps,
+             has_labels,
+             has_semantic_features,
+             has_panoptic_ids,
+             has_stamps),
         spatial_hash::Block(block_size, index) {}
 };
 
@@ -173,12 +177,11 @@ struct TrackingBlock : public spatial_hash::VoxelBlock<TrackingVoxel> {
 };
 
 using SemanticBlock = spatial_hash::VoxelBlock<SemanticVoxel>;
-using BaseSemanticBlock = spatial_hash::VoxelBlock<BaseSemanticVoxel>;
 
 // Layer types.
 using TsdfLayer = spatial_hash::VoxelLayer<TsdfBlock>;
 using SemanticLayer = spatial_hash::VoxelLayer<SemanticBlock>;
 using MeshLayer = spatial_hash::BlockLayer<MeshBlock>;
 using TrackingLayer = spatial_hash::VoxelLayer<TrackingBlock>;
-using BaseSemanticPointCloud = spatial_hash::VoxelLayer<BaseSemanticBlock>;
+
 }  // namespace hydra

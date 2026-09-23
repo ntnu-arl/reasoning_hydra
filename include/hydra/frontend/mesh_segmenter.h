@@ -1,6 +1,3 @@
-// Portions of the following code and their modifications are originally from
-// https://github.com/MIT-SPARK/Hydra/tree/main and are licensed under the following
-// license:
 /* -----------------------------------------------------------------------------
  * Copyright 2022 Massachusetts Institute of Technology.
  * All Rights Reserved
@@ -35,24 +32,11 @@
  * Government is authorized to reproduce and distribute reprints for Government
  * purposes notwithstanding any copyright notation herein.
  * -------------------------------------------------------------------------- */
-
-// Copyright (c) 2025, Autonomous Robots Lab, Norwegian University of Science and
-// Technology All rights reserved.
-
-// This source code is licensed under the BSD-style license found in the
-// LICENSE file in the root directory of this source tree.
 #pragma once
-#include <map>
 #include <memory>
-#include <set>
-#include <string>
-#include <unordered_map>
-#include <unordered_set>
-#include <vector>
 
 #include "hydra/common/dsg_types.h"
 #include "hydra/common/output_sink.h"
-#include "hydra/utils/pair_hash.h"
 
 namespace kimera_pgmo {
 class MeshDelta;
@@ -67,8 +51,6 @@ struct Cluster {
   std::optional<uint16_t> panoptic_id;
 };
 
-enum class EdgeFusionMode { AVERAGE = 0, FIRST = 1, LAST = 2 };
-
 using LabelIndices = std::map<uint32_t, std::vector<size_t>>;
 
 class MeshSegmenter {
@@ -81,36 +63,28 @@ class MeshSegmenter {
                           const LabelIndices&>;
 
   struct Config {
-    char prefix = 'O';
-    LayerId layer_id = DsgLayers::OBJECTS;
-    double active_index_horizon_m = 7.0;
+    std::string layer_id = DsgLayers::OBJECTS;
     double cluster_tolerance = 0.25;
     size_t min_cluster_size = 40;
     size_t max_cluster_size = 100000;
-    float angle_step = 10.0f;
     BoundingBox::Type bounding_box_type = BoundingBox::Type::AABB;
-    std::set<uint32_t> labels;
-    EdgeFusionMode edge_fusion_mode = EdgeFusionMode::AVERAGE;
     std::string timer_namespace = "frontend/objects";
     std::vector<Sink::Factory> sinks;
   } const config;
 
-  explicit MeshSegmenter(const Config& config);
+  explicit MeshSegmenter(const Config& config, const std::set<uint32_t>& labels);
 
-  LabelClusters detect(uint64_t timestamp_ns,
-                       const kimera_pgmo::MeshDelta& active,
-                       const std::optional<Eigen::Vector3d>& pos);
+  LabelClusters detect(uint64_t timestamp_ns, const kimera_pgmo::MeshDelta& active);
 
   void updateGraph(uint64_t timestamp,
+                   const kimera_pgmo::MeshDelta& active,
                    const LabelClusters& clusters,
-                   size_t num_archived_vertices,
-                   DynamicSceneGraph& graph,
-                   const std::optional<PairHashMap>& relations = std::nullopt);
+                   DynamicSceneGraph& graph);
 
   std::unordered_set<NodeId> getActiveNodes() const;
 
  private:
-  void archiveOldNodes(const DynamicSceneGraph& graph, size_t num_archived_vertices);
+  void updateOldNodes(const kimera_pgmo::MeshDelta& active, DynamicSceneGraph& graph);
 
   void addNodeToGraph(DynamicSceneGraph& graph,
                       const Cluster& cluster,
@@ -124,13 +98,12 @@ class MeshSegmenter {
 
   void mergeActiveNodes(DynamicSceneGraph& graph,
                         uint32_t label,
-                        bool semantic_feature,
-                        std::unordered_map<NodeId, uint16_t>& node_to_panoptic_id);
+                        bool semantic_feature);
 
  private:
   NodeSymbol next_node_id_;
+  std::set<uint32_t> labels_;
   std::map<uint32_t, std::set<NodeId>> active_nodes_;
-  std::unordered_map<NodeId, std::set<NodeId>> active_edges_;
   Sink::List sinks_;
 };
 

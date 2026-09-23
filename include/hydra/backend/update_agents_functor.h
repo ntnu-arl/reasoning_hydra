@@ -33,14 +33,39 @@
  * purposes notwithstanding any copyright notation herein.
  * -------------------------------------------------------------------------- */
 #pragma once
+#include <config_utilities/factory.h>
+
+#include <optional>
+
 #include "hydra/backend/update_functions.h"
 
 namespace hydra {
 
 struct UpdateAgentsFunctor : public UpdateFunctor {
-  MergeList call(const DynamicSceneGraph&,
-                 SharedDsgInfo& graph,
-                 const UpdateInfo::ConstPtr& info) const override;
+  struct Config {
+    bool enable_agent_keyframes = true;  // Enable adding agent keyframes
+    float cos_sim_thresh = 0.4;  // Cosine similarity threshold for keyframe addition
+    double min_translation_m =
+        2.0;  // Min translation between agent nodes to add a keyframe
+    double min_rotation_deg =
+        20.0;  // Min rotation between agent nodes to add a keyframe
+  } const config;
+
+  explicit UpdateAgentsFunctor(const Config& config);
+
+  void call(const DynamicSceneGraph&,
+            SharedDsgInfo& graph,
+            const UpdateInfo::ConstPtr& info) override;
+
+  void updateAgentKeyframes(SharedDsgInfo& dsg, const UpdateInfo::ConstPtr& info);
+
+ private:
+  std::optional<NodeSymbol> last_keyframe_id_ = std::nullopt;
+  inline static const auto registration_ =
+      config::RegistrationWithConfig<UpdateFunctor, UpdateAgentsFunctor, Config>(
+          "UpdateAgentsFunctor");
 };
+
+void declare_config(UpdateAgentsFunctor::Config&);
 
 }  // namespace hydra

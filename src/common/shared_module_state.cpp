@@ -1,6 +1,3 @@
-// Portions of the following code and their modifications are originally from
-// https://github.com/MIT-SPARK/Hydra/tree/main and are licensed under the following
-// license:
 /* -----------------------------------------------------------------------------
  * Copyright 2022 Massachusetts Institute of Technology.
  * All Rights Reserved
@@ -35,50 +32,12 @@
  * Government is authorized to reproduce and distribute reprints for Government
  * purposes notwithstanding any copyright notation herein.
  * -------------------------------------------------------------------------- */
-
-// Copyright (c) 2025, Autonomous Robots Lab, Norwegian University of Science and
-// Technology All rights reserved.
-
-// This source code is licensed under the BSD-style license found in the
-// LICENSE file in the root directory of this source tree.
 #include "hydra/common/shared_module_state.h"
-
-#include <glog/logging.h>
 
 namespace hydra {
 
 SharedModuleState::SharedModuleState() {}
 
-SharedModuleState::~SharedModuleState() {
-  VLOG(2) << "backend_queue: " << backend_queue.size();
-  if (lcd_queue) {
-    VLOG(2) << "lcd_queue: " << lcd_queue->size();
-  } else {
-    VLOG(2) << "lcd_queue: n/a";
-  }
+SharedModuleState::~SharedModuleState() {}
 
-  if (bow_queue) {
-    VLOG(2) << "bow_queue: " << bow_queue->size();
-  } else {
-    VLOG(2) << "bow_queue: n/a";
-  }
-  VLOG(2) << "backend_lcd_queue: " << backend_lcd_queue.size();
-
-  if (vlm_labels_queue) {
-    VLOG(2) << "vlm_labels_queue: " << vlm_labels_queue->size();
-  } else {
-    VLOG(2) << "vlm_labels_queue: n/a";
-  }
-}
-
-void BackendModuleStatus::reset() {
-  total_loop_closures = 0;
-  new_loop_closures = 0;
-  total_factors = 0;
-  total_values = 0;
-  new_factors = 0;
-  new_graph_factors = 0;
-  trajectory_len = 0;
-  num_merges_undone = 0;
-}
 }  // namespace hydra

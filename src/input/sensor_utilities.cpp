@@ -109,20 +109,6 @@ BlockIndices findBlocksInViewFrustum(const Sensor& sensor,
   return result;
 }
 
-BlockIndices findBlocksInPointcloud(pcl::PointCloud<pcl::PointXYZRGBL>::Ptr point,
-                                    const float block_size) {
-  // Find the blocks that correspond to the pointcloud.
-  BlockIndices result;
-  for (const auto& p : point->points) {
-    const spatial_hash::Point p_W(p.x, p.y, p.z);
-    const auto block_index =
-        spatial_hash::indexFromPoint<BlockIndex>(p_W, 1.f / block_size);
-    result.push_back(block_index);
-  }
-
-  return result;
-}
-
 cv::Mat computeRangeImageFromPoints(const cv::Mat& points,
                                     float* min_range,
                                     float* max_range) {

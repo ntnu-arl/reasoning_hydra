@@ -35,12 +35,12 @@
 #include "hydra/rooms/room_finder.h"
 
 #include <glog/logging.h>
+#include <spark_dsg/graph_utilities.h>
 
 #include <Eigen/Dense>
 #include <algorithm>
 #include <queue>
 
-#include "hydra/common/global_info.h"
 #include "hydra/rooms/graph_filtration.h"
 #include "hydra/rooms/room_utilities.h"
 
@@ -286,7 +286,7 @@ SceneGraphLayer::Ptr RoomFinder::findRooms(const SceneGraphLayer& places) {
           components,
           [](const SceneGraphLayer& G, NodeId n1, NodeId n2) {
             // weight should be 1 / distance
-            return 1.0 / (G.getPosition(n1) - G.getPosition(n2)).norm();
+            return 1.0 / (getNodePosition(G, n1) - getNodePosition(G, n2)).norm();
           },
           config_.max_modularity_iters,
           config_.modularity_gamma);
@@ -310,7 +310,7 @@ SceneGraphLayer::Ptr RoomFinder::findRooms(const SceneGraphLayer& places) {
 }
 
 SceneGraphLayer::Ptr RoomFinder::makeRoomLayer(const SceneGraphLayer& places) {
-  IsolatedSceneGraphLayer::Ptr rooms(new IsolatedSceneGraphLayer(DsgLayers::ROOMS));
+  SceneGraphLayer::Ptr rooms(new SceneGraphLayer(DsgLayers::ROOMS));
 
   // organize rooms by their oldest place
   IndexTimePairQueue queue;
@@ -327,8 +327,6 @@ SceneGraphLayer::Ptr RoomFinder::makeRoomLayer(const SceneGraphLayer& places) {
     auto attrs = std::make_unique<RoomNodeAttributes>();
     // TODO(nathan) define unknown label somewhere
     attrs->semantic_label = 0;
-    attrs->name = room_id.getLabel();
-    attrs->color = GlobalInfo::instance().getRoomColor(room_id.categoryId());
     attrs->position = getRoomPosition(places, cluster);
 
     rooms->emplaceNode(room_id, std::move(attrs));
@@ -351,7 +349,8 @@ void RoomFinder::addRoomPlaceEdges(DynamicSceneGraph& graph) const {
       continue;
     }
 
-    graph.insertParentEdge(room->second, id_node_pair.first);
+    // add edge enforcing parent invariants
+    graph.insertEdge(room->second, id_node_pair.first, nullptr, true);
   }
 }
 

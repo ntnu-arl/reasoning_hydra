@@ -33,38 +33,11 @@
  * purposes notwithstanding any copyright notation herein.
  * -------------------------------------------------------------------------- */
 #pragma once
-#include <spark_dsg/scene_graph_types.h>
-#include <yaml-cpp/yaml.h>
-
 #include <Eigen/Geometry>
 #include <map>
 #include <string>
 
-#include "hydra/common/common_types.h"
-
 namespace hydra {
-
-template <typename T>
-struct LayerMapConversion {
-  using TargetMap = std::map<std::string, T>;
-  using SourceMap = std::map<spark_dsg::LayerId, T>;
-
-  static TargetMap toIntermediate(const SourceMap& other, std::string&) {
-    TargetMap to_return;
-    for (const auto& kv_pair : other) {
-      to_return[spark_dsg::DsgLayers::LayerIdToString(kv_pair.first)] = kv_pair.second;
-    }
-
-    return to_return;
-  }
-
-  static void fromIntermediate(const TargetMap& other, SourceMap& value, std::string&) {
-    value.clear();
-    for (const auto& kv_pair : other) {
-      value[spark_dsg::DsgLayers::StringToLayerId(kv_pair.first)] = kv_pair.second;
-    }
-  }
-};
 
 struct QuaternionConverter {
   using DoubleMap = std::map<std::string, double>;
@@ -77,35 +50,3 @@ struct QuaternionConverter {
 };
 
 }  // namespace hydra
-
-namespace YAML {
-
-template <>
-struct convert<spark_dsg::Color> {
-  static Node encode(const spark_dsg::Color& rhs) {
-    auto node = YAML::Node(YAML::NodeType::Sequence);
-    node.push_back(static_cast<int>(rhs.r));
-    node.push_back(static_cast<uint8_t>(rhs.g));
-    node.push_back(static_cast<uint8_t>(rhs.b));
-    node.push_back(static_cast<uint8_t>(rhs.a));
-    return node;
-  }
-
-  static bool decode(const Node& node, spark_dsg::Color& rhs) {
-    if (!node.IsSequence()) {
-      throw std::runtime_error("Color must be a sequence!");
-    }
-    if (node.size() < 3 || node.size() > 4) {
-      throw std::runtime_error("Invalid color representation with '" +
-                               std::to_string(node.size()) + "' channels!");
-    }
-
-    rhs.r = static_cast<uint8_t>(node[0].as<int>());
-    rhs.g = static_cast<uint8_t>(node[1].as<int>());
-    rhs.b = static_cast<uint8_t>(node[2].as<int>());
-    rhs.a = node.size() == 4 ? static_cast<uint8_t>(node[3].as<int>()) : 255;
-    return true;
-  }
-};
-
-}  // namespace YAML

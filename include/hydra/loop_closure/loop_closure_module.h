@@ -34,15 +34,15 @@
  * -------------------------------------------------------------------------- */
 #pragma once
 #include <memory>
+#include <queue>
 #include <thread>
 
-#include "hydra/common/common.h"
+#include "hydra/common/common_types.h"
 #include "hydra/common/module.h"
 #include "hydra/common/shared_dsg_info.h"
 #include "hydra/common/shared_module_state.h"
 #include "hydra/loop_closure/detector.h"
 #include "hydra/loop_closure/loop_closure_config.h"
-#include "hydra/utils/log_utilities.h"
 
 namespace hydra {
 
@@ -57,7 +57,7 @@ class LoopClosureModule : public Module {
 
   void stop() override;
 
-  void save(const LogSetup& log_setup) override;
+  void save(const DataDirectory& output) override;
 
   std::string printInfo() const override;
 
@@ -79,6 +79,7 @@ class LoopClosureModule : public Module {
  protected:
   std::atomic<bool> should_shutdown_{false};
   std::unique_ptr<std::thread> spin_thread_;
+  uint64_t last_sequence_number_ = 0;
 
   LoopClosureConfig config_;
   SharedModuleState::Ptr state_;
@@ -88,6 +89,9 @@ class LoopClosureModule : public Module {
 
   std::unique_ptr<lcd::LcdDetector> lcd_detector_;
   DynamicSceneGraph::Ptr lcd_graph_;
+
+ private:
+  void stopImpl();
 };
 
 }  // namespace hydra

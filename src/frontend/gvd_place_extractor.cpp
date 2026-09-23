@@ -36,9 +36,12 @@
 
 #include <config_utilities/config.h>
 #include <config_utilities/validation.h>
+#include <spark_dsg/graph_utilities.h>
+#include <spark_dsg/printing.h>
 
+#include "hydra/active_window/volumetric_window.h"
 #include "hydra/common/global_info.h"
-#include "hydra/places/graph_extractor_interface.h"
+#include "hydra/places/graph_extractor.h"
 #include "hydra/places/graph_extractor_utilities.h"
 #include "hydra/places/gvd_integrator.h"
 #include "hydra/utils/timing_utilities.h"
@@ -53,8 +56,8 @@ using places::GvdVoxel;
 void declare_config(GvdPlaceExtractor::Config& config) {
   using namespace config;
   name("GvdPlaceExtractor::Config");
+  field(config.layer, "layer");
   field(config.gvd, "gvd");
-  config.graph.setOptional();
   field(config.graph, "graph");
   config.tsdf_interpolator.setOptional();
   field(config.tsdf_interpolator, "tsdf_interpolator");
@@ -66,66 +69,25 @@ void declare_config(GvdPlaceExtractor::Config& config) {
   field(config.node_tolerance, "node_tolerance");
   field(config.add_freespace_edges, "add_freespace_edges");
   if (config.add_freespace_edges) {
-    // TODO(nathan) see why ADL is broken
-    field(config.freespace_config.max_length_m, "max_length_m");
-    field(config.freespace_config.num_nodes_to_check, "num_nodes_to_check");
-    field(config.freespace_config.num_neighbors_to_find, "num_neighbors_to_find");
-    field(config.freespace_config.min_clearance_m, "min_clearance_m");
+    field(config.freespace_config, "freespace_config", false);
   }
   field(config.sinks, "sinks");
 }
 
 GvdPlaceExtractor::GvdPlaceExtractor(const Config& c)
     : config(config::checkValid(c)),
-      graph_extractor_(config.graph.create()),
+      graph_extractor_(config.graph),
+      map_window_(GlobalInfo::instance().createVolumetricWindow()),
       sinks_(Sink::instantiate(config.sinks)) {
-  if (!graph_extractor_) {
-    LOG(ERROR) << "no place graph extraction provided! disabling extraction";
-  }
-
   tsdf_interpolator_ = config.tsdf_interpolator.create();
   if (tsdf_interpolator_) {
     LOG(INFO) << "Downsampling TSDF when creating places!";
   }
 
-  const auto& map_config = GlobalInfo::instance().getMapConfig();
-  if (static_cast<float>(config.gvd.min_distance_m) >= map_config.truncation_distance) {
-    LOG(ERROR)
-        << "integrator min distance must be less than truncation distance (currently "
-        << config.gvd.min_distance_m << " vs. truncation distance "
-        << map_config.truncation_distance << ")";
-    throw std::runtime_error("invalid integrator min distance");
-  }
-
-  size_t sink_idx = 0;
-  for (const auto& sink : sinks_) {
-    VLOG(1) << "Sink " << sink_idx << ": " << (sink ? sink->printInfo() : "n/a");
-    ++sink_idx;
-  }
+  VLOG(1) << "\n" << Sink::printSinks(sinks_);
 }
 
 GvdPlaceExtractor::~GvdPlaceExtractor() {}
-
-void GvdPlaceExtractor::save(const LogSetup& log_setup) const {
-  const auto output_path = log_setup.getLogDir("frontend");
-  if (graph_extractor_) {
-    const auto& original_places = graph_extractor_->getGraph();
-    auto places = original_places.clone();
-
-    std::unique_ptr<DynamicSceneGraph::Edges> edges(new DynamicSceneGraph::Edges());
-    for (const auto& id_edge_pair : places->edges()) {
-      edges->emplace(std::piecewise_construct,
-                     std::forward_as_tuple(id_edge_pair.first),
-                     std::forward_as_tuple(id_edge_pair.second.source,
-                                           id_edge_pair.second.target,
-                                           id_edge_pair.second.info->clone()));
-    }
-
-    DynamicSceneGraph::Ptr graph(new DynamicSceneGraph());
-    graph->updateFromLayer(*places, std::move(edges));
-    graph->save(output_path + "/places.json", false);
-  }
-}
 
 NodeIdSet GvdPlaceExtractor::getActiveNodes() const { return active_nodes_; }
 
@@ -151,41 +113,53 @@ std::vector<bool> GvdPlaceExtractor::inFreespace(const PositionMatrix& positions
   return flags;
 }
 
-void GvdPlaceExtractor::detect(const ReconstructionOutput& msg) {
+void GvdPlaceExtractor::detect(const ActiveWindowOutput& msg) {
   ScopedTimer timer("frontend/detect_gvd", msg.timestamp_ns, true, 2, false);
 
   const auto& map = msg.map();
-  const auto* tsdf = &map.getTsdfLayer();
+  if (static_cast<float>(config.gvd.min_distance_m) >= map.config.truncation_distance) {
+    LOG(ERROR) << "GVD integrator min distance must be less than truncation distance "
+                  "(currently "
+               << config.gvd.min_distance_m << " vs. truncation distance "
+               << map.config.truncation_distance << ")";
+    return;
+  }
 
-  TsdfLayer::Ptr tsdf_ptr;
+  TsdfLayer::Ptr downsampled_tsdf;
   if (tsdf_interpolator_) {
     ScopedTimer dtimer("frontend/downsample_tsdf", msg.timestamp_ns, true, 2, false);
-    const auto blocks = tsdf->blockIndicesWithCondition(TsdfBlock::esdfUpdated);
-    tsdf_ptr = tsdf_interpolator_->interpolate(*tsdf, &blocks);
-    for (auto& block : *tsdf_ptr) {
-      block.setUpdated();
-    }
-
-    tsdf = tsdf_ptr.get();
+    downsampled_tsdf = tsdf_interpolator_->interpolate(map.getTsdfLayer());
   }
+
+  const auto& tsdf = downsampled_tsdf ? *downsampled_tsdf : map.getTsdfLayer();
+  const Eigen::Isometry3d world_T_body = msg.world_T_body();
+  latest_pos_ = world_T_body.translation();
 
   if (!gvd_) {
-    gvd_.reset(new places::GvdLayer(tsdf->voxel_size, tsdf->voxels_per_side));
-    gvd_integrator_.reset(new GvdIntegrator(config.gvd, gvd_, graph_extractor_));
+    gvd_.reset(new places::GvdLayer(tsdf.voxel_size, tsdf.voxels_per_side));
+    gvd_integrator_.reset(new GvdIntegrator(config.gvd, gvd_));
   }
-
-  const Eigen::Isometry3f world_T_body = msg.world_T_body().cast<float>();
-  latest_pos_ = world_T_body.translation().cast<double>();
 
   {  // start critical section
     std::unique_lock<std::mutex> lock(gvd_mutex_);
     ScopedTimer timer("places/gvd", msg.timestamp_ns);
-    gvd_integrator_->updateFromTsdf(msg.timestamp_ns, *tsdf, true);
-    gvd_integrator_->updateGvd(msg.timestamp_ns);
-    gvd_integrator_->archiveBlocks(msg.archived_blocks);
+    // reconstruction now only sends updated blocks so we integrate everything
+    gvd_integrator_->updateFromTsdf(msg.timestamp_ns, tsdf, false, true);
+    gvd_integrator_->updateGvd(msg.timestamp_ns, &graph_extractor_);
+
+    if (map_window_) {
+      BlockIndices to_archive;
+      for (const auto& block : *gvd_) {
+        if (!map_window_->inBounds(msg.timestamp_ns, world_T_body, block)) {
+          to_archive.push_back(block.index);
+        }
+      }
+
+      gvd_integrator_->archiveBlocks(to_archive, &graph_extractor_);
+    }
   }  // end critical section
 
-  Sink::callAll(sinks_, msg.timestamp_ns, world_T_body, *gvd_, graph_extractor_.get());
+  Sink::callAll(sinks_, msg.timestamp_ns, world_T_body, *gvd_, graph_extractor_);
 }
 
 void filterInvalidNodes(const SceneGraphLayer& graph, NodeIdSet& active_nodes) {
@@ -223,18 +197,15 @@ void filterInvalidNodes(const SceneGraphLayer& graph, NodeIdSet& active_nodes) {
 
 void GvdPlaceExtractor::updateGraph(uint64_t timestamp_ns, DynamicSceneGraph& graph) {
   ScopedTimer timer("frontend/update_gvd_places", timestamp_ns, true, 2, false);
-  if (!graph_extractor_) {
-    return;
-  }
 
-  active_nodes_ = graph_extractor_->getActiveNodes();
-  const auto& places = graph_extractor_->getGraph();
+  active_nodes_ = graph_extractor_.getActiveNodes();
+  const auto& places = graph_extractor_.getGraph();
   filterInvalidNodes(places, active_nodes_);
   VLOG(2) << "[Hydra Frontend] Considering " << active_nodes_.size()
           << " input place nodes ";
 
   NodeIdSet active_neighborhood = active_nodes_;
-  for (const auto& node_id : graph_extractor_->getDeletedNodes()) {
+  for (const auto& node_id : graph_extractor_.getDeletedNodes()) {
     const auto node = graph.findNode(node_id);
     if (!node) {
       continue;
@@ -245,7 +216,7 @@ void GvdPlaceExtractor::updateGraph(uint64_t timestamp_ns, DynamicSceneGraph& gr
     graph.removeNode(node_id);
   }
 
-  const auto& deleted_edges = graph_extractor_->getDeletedEdges();
+  const auto& deleted_edges = graph_extractor_.getDeletedEdges();
   for (size_t i = 0; i < deleted_edges.size(); i += 2) {
     const auto n1 = deleted_edges.at(i);
     const auto n2 = deleted_edges.at(i + 1);
@@ -259,7 +230,7 @@ void GvdPlaceExtractor::updateGraph(uint64_t timestamp_ns, DynamicSceneGraph& gr
     auto attrs = node.attributes().clone();
     attrs->is_active = true;
     attrs->last_update_time_ns = timestamp_ns;
-    graph.addOrUpdateNode(DsgLayers::PLACES, node_id, std::move(attrs));
+    graph.addOrUpdateNode(config.layer, node_id, std::move(attrs));
 
     for (const auto sibling : node.siblings()) {
       const auto& edge = places.getEdge(node_id, sibling);
@@ -275,12 +246,12 @@ void GvdPlaceExtractor::updateGraph(uint64_t timestamp_ns, DynamicSceneGraph& gr
     filterIsolated(graph, active_neighborhood);
   }
 
-  graph_extractor_->clearDeleted();
+  graph_extractor_.clearDeleted();
 }
 
 void GvdPlaceExtractor::filterIsolated(DynamicSceneGraph& graph,
                                        NodeIdSet& active_neighborhood) {
-  const auto& places = graph_extractor_->getGraph();
+  const auto& places = graph_extractor_.getGraph();
 
   auto iter = active_neighborhood.begin();
   while (iter != active_neighborhood.end()) {
@@ -357,11 +328,11 @@ void GvdPlaceExtractor::filterGround(DynamicSceneGraph& graph) {
                              graph.getLayer(DsgLayers::PLACES),
                              *gvd_,
                              active_nodes_,
-                             graph_extractor_->getIndexMap(),
+                             graph_extractor_.getIndexMap(),
                              new_edges);
   for (auto&& [edge_key, attrs] : new_edges) {
-    const auto& source_pos = graph.getPosition(edge_key.k1);
-    const auto& target_pos = graph.getPosition(edge_key.k2);
+    const auto& source_pos = getNodePosition(graph, edge_key.k1);
+    const auto& target_pos = getNodePosition(graph, edge_key.k2);
     double source_min_z = source_pos.z() - attrs->weight;
     double target_min_z = target_pos.z() - attrs->weight;
     if (source_min_z > max_z || target_min_z > max_z) {
