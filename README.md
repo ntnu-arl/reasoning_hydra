@@ -3,7 +3,7 @@
 [![License](https://img.shields.io/badge/License-BSD-blue.svg)](LICENSE)
 [![ROS 2 Jazzy](https://img.shields.io/badge/ROS%202-Jazzy-22314E.svg)](https://docs.ros.org/en/jazzy/)
 
-This repository contains the scene graph and mapping library used by [HFLEX-EQA](https://arxiv.org/abs/2609.26360), an embodied question answering system for previously unseen indoor environments. It extends [Hydra](https://github.com/MIT-SPARK/Hydra) and the [relationship-aware hierarchical scene graph](https://github.com/ntnu-arl/reasoning_hydra) with the map, navigation, frontier, and visual-memory layers needed for exploration. The high-level EQA planner and ROS launch composition live in [hvlm_planner](https://github.com/ntnu-arl/hvlm_planner/tree/hflex_eqa) and [hvlm_planner_ros](https://github.com/ntnu-arl/hvlm_planner_ros/tree/hflex_eqa).
+This repository contains the scene graph and mapping library used by [HFLEX-EQA](https://arxiv.org/abs/2609.26360), an embodied question answering system for previously unseen indoor environments. It extends [Hydra](https://github.com/MIT-SPARK/Hydra) and the [relationship-aware hierarchical scene graph](https://github.com/ntnu-arl/reasoning_hydra) with the map, navigation, frontier, and visual-memory layers needed for exploration. The high-level EQA planner and ROS launch composition live in [hflex_eqa](https://github.com/ntnu-arl/hflex_eqa/tree/main) and [hflex_eqa_ros](https://github.com/ntnu-arl/hflex_eqa_ros/tree/main).
 
 ## Table of Contents
 
@@ -30,7 +30,7 @@ The [Habitat config](config/datasets/habitat.yaml) and [ANYmal config](config/da
 
 ## Setup
 
-Use Ubuntu 24.04, ROS 2 Jazzy, an NVIDIA GPU, and the Docker workflow in the [HFLEX-EQA installation guide](https://github.com/ntnu-arl/hvlm_planner/tree/hflex_eqa#installation-with-docker). Import its [desktop](https://github.com/ntnu-arl/hvlm_planner/blob/hflex_eqa/install/default.repos) or [Jetson Thor](https://github.com/ntnu-arl/hvlm_planner/blob/hflex_eqa/install/thor.repos) dependency manifest; both select this repository's `hflex_eqa` branch. Build the workspace inside the container:
+Use Ubuntu 24.04, ROS 2 Jazzy, an NVIDIA GPU, and the Docker workflow in the [HFLEX-EQA installation guide](https://github.com/ntnu-arl/hflex_eqa/tree/main#installation-with-docker). Import its [desktop](https://github.com/ntnu-arl/hflex_eqa/blob/main/install/default.repos) or [Jetson Thor](https://github.com/ntnu-arl/hflex_eqa/blob/main/install/thor.repos) dependency manifest; both select this repository's `hflex_eqa` branch. Build the workspace inside the container:
 
 ```bash
 cd /developer/hflex_eqa_ws
@@ -45,7 +45,7 @@ This is a C++ library; launch the EQA system through its ROS packages. The assoc
 
 ### Habitat Simulation
 
-Follow the [dataset and floorplan setup](https://github.com/ntnu-arl/hvlm_planner/tree/hflex_eqa#download-hm3d-and-eqa-benchmarks), then run one scene with [`habitat_eqa.launch.yaml`](https://github.com/ntnu-arl/hvlm_planner_ros/blob/hflex_eqa/hvlm_planner_ros/launch/habitat/habitat_eqa.launch.yaml):
+Follow the [dataset and floorplan setup](https://github.com/ntnu-arl/hflex_eqa/tree/main#download-hm3d-and-eqa-benchmarks), then run one scene with [`habitat_eqa.launch.yaml`](https://github.com/ntnu-arl/hflex_eqa_ros/blob/main/hflex_eqa_ros/launch/habitat/habitat_eqa.launch.yaml):
 
 ```bash
 ros2 launch hvlm_planner_ros habitat_eqa.launch.yaml \
@@ -53,11 +53,11 @@ ros2 launch hvlm_planner_ros habitat_eqa.launch.yaml \
   question:="What color is the microwave"
 ```
 
-The ROS launch selects [`config/datasets/habitat.yaml`](config/datasets/habitat.yaml). For OpenEQA or ExploreEQA dataset loops, use `ros2 launch simulation_manager_ros simulate.launch.yaml` as described in the [main guide](https://github.com/ntnu-arl/hvlm_planner/tree/hflex_eqa#run-openeqa-or-exploreeqa).
+The ROS launch selects [`config/datasets/habitat.yaml`](config/datasets/habitat.yaml). For OpenEQA or ExploreEQA dataset loops, use `ros2 launch simulation_manager_ros simulate.launch.yaml` as described in the [main guide](https://github.com/ntnu-arl/hflex_eqa/tree/main#run-openeqa-or-exploreeqa).
 
 ### Robot Deployment
 
-On a Jetson Thor mounted on ANYmal, use the [Thor Docker instructions](https://github.com/ntnu-arl/hvlm_planner/tree/hflex_eqa#deploy-on-jetson-thor-and-anymal). The robot must supply the camera topics and transforms configured by [`scene_graph.launch.yaml`](https://github.com/ntnu-arl/hvlm_planner_ros/blob/hflex_eqa/hvlm_planner_ros/launch/scene_graph.launch.yaml). After building and sourcing the workspace, launch the mapping and EQA stacks:
+On a Jetson Thor mounted on ANYmal, use the [Thor Docker instructions](https://github.com/ntnu-arl/hflex_eqa/tree/main#deploy-on-jetson-thor-and-anymal). The robot must supply the camera topics and transforms configured by [`scene_graph.launch.yaml`](https://github.com/ntnu-arl/hflex_eqa_ros/blob/main/hflex_eqa_ros/launch/scene_graph.launch.yaml). After building and sourcing the workspace, launch the mapping and EQA stacks:
 
 ```bash
 ros2 launch hvlm_planner_ros scene_graph.launch.yaml
@@ -104,4 +104,4 @@ This work was supported by the European Commission through Project SYNERGISE (Ho
 
 ## Contact
 
-For questions about the EQA integration, use [GitHub Issues](https://github.com/ntnu-arl/hvlm_planner/issues) or contact [Albert Gassol Puigjaner](mailto:albert.g.puigjaner@ntnu.no) and [Kostas Alexis](mailto:konstantinos.alexis@ntnu.no).
+For questions about the EQA integration, use [GitHub Issues](https://github.com/ntnu-arl/hflex_eqa/issues) or contact [Albert Gassol Puigjaner](mailto:albert.g.puigjaner@ntnu.no) and [Kostas Alexis](mailto:konstantinos.alexis@ntnu.no).
